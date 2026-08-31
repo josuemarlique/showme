@@ -30488,7 +30488,10 @@ import {
 import os2 from "node:os";
 import path3 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var PLUGIN_AUTHOR = Object.freeze({ name: "Local fork" });
+var PLUGIN_AUTHOR = Object.freeze({
+  name: "Fork of lavish-axi by Kun Chen (MIT)",
+  url: "https://github.com/kunchenguid/lavish-axi"
+});
 function spawnPluginClientSync(command, args) {
   return import_cross_spawn.default.sync(command, args, { encoding: "utf8" });
 }

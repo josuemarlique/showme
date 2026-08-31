@@ -3,7 +3,8 @@
   "description": "Open agent-generated HTML in a local browser to review it: point at elements, annotate text, and send feedback back to the agent instead of reading a wall of text.",
   "version": "0.1.63",
   "author": {
-    "name": "Local fork of lavish-axi by Kun Chen (MIT)"
+    "name": "Fork of lavish-axi by Kun Chen (MIT)",
+    "url": "https://github.com/kunchenguid/lavish-axi"
   },
   "license": "MIT",
   "keywords": [

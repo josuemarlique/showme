@@ -4,7 +4,8 @@
   "version": "0.1.63",
   "description": "HTML is the new markdown. Showme is the new editor for your HTML artifacts.",
   "author": {
-    "name": "Local fork"
+    "name": "Fork of lavish-axi by Kun Chen (MIT)",
+    "url": "https://github.com/kunchenguid/lavish-axi"
   },
   "license": "MIT",
   "keywords": [

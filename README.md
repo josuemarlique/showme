@@ -2,6 +2,28 @@
 
 Open agent-generated HTML in a local browser, point at what needs changing, and send that feedback straight back to the agent.
 
+> **Showme is a fork of [lavish-axi](https://github.com/kunchenguid/lavish-axi) by [Kun Chen](https://github.com/kunchenguid), used under the MIT license.**
+> Kun Chen wrote the editor, the review loop, the whiteboards, and nearly everything this tool does.
+> This fork only removes the parts that sent data off the machine and renames what was left.
+> The original copyright is kept verbatim in [`LICENSE`](LICENSE).
+
+### How this differs from lavish-axi
+
+Everything Showme does well is Kun Chen's design.
+This fork changes six things and leaves the rest alone.
+
+|                         | lavish-axi                                                                                                | Showme                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Usage tracking          | Sends anonymous events to the author's analytics server, on by default                                    | None. A test points the old settings at a listener and asserts nothing is sent |
+| Publishing an artifact  | `share` uploads it to ht-ml.app, public by default, no delete                                             | Removed                                                                        |
+| Network reach           | Also binds your Tailscale address automatically, so other devices can reach it                            | Binds `127.0.0.1` only                                                         |
+| Reviewing on your phone | Yes, over Tailscale                                                                                       | No                                                                             |
+| `update`                | Looks the package up on the npm registry                                                                  | Refuses. That name belongs to an unrelated package                             |
+| How you install it      | npm package                                                                                               | Git clone. Nothing is published to npm                                         |
+| Everything else         | The editor, review loop, annotations, Mermaid whiteboards, layout inbox, attachments, live reload, export | Unchanged                                                                      |
+
+Full detail is in [About this fork](#about-this-fork) below.
+
 HTML is the new markdown.
 Showme is the new editor for your HTML artifacts.
 
@@ -26,7 +48,7 @@ Showme is an AXI, a command-line tool shaped for an agent to drive rather than a
 
 ## About this fork
 
-This repository is a personal, private fork of **lavish-axi** by Kun Chen, used under the MIT license.
+This repository is a fork of **lavish-axi** by Kun Chen, used under the MIT license.
 The original copyright notice is untouched in `LICENSE`, and `CHANGELOG.md` is the upstream project's history, not this fork's.
 
 The fork exists for two reasons: the project was renamed to Showme, and every part of it that sent data off this machine was deleted.
