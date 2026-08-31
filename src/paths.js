@@ -23,29 +23,23 @@ export function isWildcardHost(host) {
   }
 }
 
-// Address the server binds to (LAVISH_AXI_HOST). Defaults to loopback. A wildcard value
+// Address the server binds to (SHOWME_HOST). Defaults to loopback. A wildcard value
 // (0.0.0.0 or ::) is never listened on; resolveListenHosts maps it to loopback.
 export function bindHost(env = process.env) {
-  return env.LAVISH_AXI_HOST?.trim() || LOOPBACK_HOST;
+  return env.SHOWME_HOST?.trim() || LOOPBACK_HOST;
 }
 
 /**
  * Concrete listen addresses. Never includes 0.0.0.0 / ::.
- * When LAVISH_AXI_HOST is unset, bind loopback plus Tailscale IPv4 if present.
- * An explicit LAVISH_AXI_HOST stays that single safe concrete address.
- * @param {{ host?: string, env?: NodeJS.ProcessEnv, tailscale?: { ipv4?: string } | null }} [options]
+ * Loopback only unless SHOWME_HOST names one other concrete address, so nothing
+ * is reachable from another machine by default.
+ * @param {{ host?: string, env?: NodeJS.ProcessEnv }} [options]
  * @returns {string[]}
  */
-export function resolveListenHosts({ host, env = process.env, tailscale = null } = {}) {
-  const envHost = env.LAVISH_AXI_HOST?.trim() || "";
-  const autoTailscale = !envHost;
+export function resolveListenHosts({ host, env = process.env } = {}) {
   const requested = host || bindHost(env);
   const primary = isWildcardHost(requested) ? LOOPBACK_HOST : requested || LOOPBACK_HOST;
-  const hosts = [primary];
-  if (autoTailscale && tailscale?.ipv4 && tailscale.ipv4 !== primary && !isWildcardHost(tailscale.ipv4)) {
-    hosts.push(tailscale.ipv4);
-  }
-  return sanitizeListenHosts(hosts);
+  return sanitizeListenHosts([primary]);
 }
 
 /**
@@ -85,13 +79,11 @@ export async function resolveConcreteListenHosts(hosts, { lookup = dnsLookup } =
 }
 
 /**
- * Hostname written into session URLs. A running Tailscale MagicDNS name is the
- * phone-ready headline host; an explicit link host is used only without MagicDNS.
- * @param {{ env?: NodeJS.ProcessEnv, tailscale?: { magicDnsName?: string | null, ipv4?: string } | null, fallbackHost?: string }} [options]
+ * Hostname written into session URLs.
+ * @param {{ env?: NodeJS.ProcessEnv, fallbackHost?: string }} [options]
  */
-export function resolveLinkHost({ env = process.env, tailscale = null, fallbackHost = LOOPBACK_HOST } = {}) {
-  if (tailscale?.magicDnsName) return tailscale.magicDnsName;
-  const explicit = env.LAVISH_AXI_LINK_HOST?.trim();
+export function resolveLinkHost({ env = process.env, fallbackHost = LOOPBACK_HOST } = {}) {
+  const explicit = env.SHOWME_LINK_HOST?.trim();
   if (explicit) return explicit;
   return isWildcardHost(fallbackHost) ? LOOPBACK_HOST : fallbackHost || LOOPBACK_HOST;
 }
@@ -102,18 +94,18 @@ export function clientHost(env = process.env) {
   return resolveListenHosts({ env })[0];
 }
 
-// Hostname written into the session URLs the server generates (LAVISH_AXI_LINK_HOST).
+// Hostname written into the session URLs the server generates (SHOWME_LINK_HOST).
 // Defaults to the host the CLI dials.
 export function linkHost(env = process.env) {
-  return env.LAVISH_AXI_LINK_HOST?.trim() || clientHost(env);
+  return env.SHOWME_LINK_HOST?.trim() || clientHost(env);
 }
 
 // Extra Host header values the server's DNS-rebinding guard accepts beyond the
-// loopback names and the resolved bind/link host, set via LAVISH_AXI_ALLOWED_HOSTS
+// loopback names and the resolved bind/link host, set via SHOWME_ALLOWED_HOSTS
 // (whitespace-separated). A lone "*" disables the guard entirely - an explicit
 // opt-out for operators fronting the server with their own auth/proxy.
 export function extraAllowedHosts(env = process.env) {
-  return (env.LAVISH_AXI_ALLOWED_HOSTS || "").split(/\s+/).filter(Boolean);
+  return (env.SHOWME_ALLOWED_HOSTS || "").split(/\s+/).filter(Boolean);
 }
 
 // Brackets an IPv6 literal so it can be safely interpolated into a URL authority.
@@ -124,7 +116,7 @@ export function hostForUrl(host) {
 }
 
 export function stateDir() {
-  return process.env.LAVISH_AXI_STATE_DIR || path.join(os.homedir(), ".lavish-axi");
+  return process.env.SHOWME_STATE_DIR || path.join(os.homedir(), ".showme");
 }
 
 export function stateFile() {
@@ -140,5 +132,5 @@ export async function ensureStateDir() {
 }
 
 export function defaultPort() {
-  return Number(process.env.LAVISH_AXI_PORT || 4387);
+  return Number(process.env.SHOWME_PORT || 4387);
 }

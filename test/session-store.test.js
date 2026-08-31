@@ -42,7 +42,7 @@ function feedbackResult(result) {
 }
 
 test("queued prompts are returned with DOM snapshot context and then cleared", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -69,7 +69,7 @@ test("queued prompts are returned with DOM snapshot context and then cleared", a
 });
 
 test("queued text selection prompts preserve range anchors", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -101,7 +101,7 @@ test("queued text selection prompts preserve range anchors", async () => {
 });
 
 test("queued mermaid node prompts preserve node identity and drop unknown fields", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -148,7 +148,7 @@ test("queued mermaid node prompts preserve node identity and drop unknown fields
 });
 
 test("queued whiteboard prompts normalize the excalidraw-scene target to its fixed shape", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -199,7 +199,7 @@ test("queued whiteboard prompts normalize the excalidraw-scene target to its fix
 });
 
 test("a diagnostic pass records warnings passively and never becomes agent feedback", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -239,7 +239,7 @@ test("a diagnostic pass records warnings passively and never becomes agent feedb
 });
 
 test("a newer begun load invalidates an older diagnostic atomically", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -274,7 +274,7 @@ test("a newer begun load invalidates an older diagnostic atomically", async () =
 });
 
 test("a retried begin request reuses the same load epoch", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -319,7 +319,7 @@ test("a retried begin request reuses the same load epoch", async () => {
 });
 
 test("reopening a session preserves the live reviewer handoff and artifact load", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -352,7 +352,7 @@ test("reopening a session preserves the live reviewer handoff and artifact load"
 });
 
 test("typed handoff outcomes separate superseded and no-handoff begins", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -400,7 +400,7 @@ test("typed handoff outcomes separate superseded and no-handoff begins", async (
 });
 
 test("non-severe observations never enter the inbox", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -435,7 +435,7 @@ test("non-severe observations never enter the inbox", async () => {
 });
 
 test("queueing a warning produces one ordinary prompt and leaves the warning unresolved", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -487,7 +487,7 @@ test("queueing a warning produces one ordinary prompt and leaves the warning unr
 });
 
 test("a prepared layout prompt conflicts when its warning changes before sending", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -530,7 +530,7 @@ test("a prepared layout prompt conflicts when its warning changes before sending
 });
 
 test("a stale diagnostic pass cannot mutate the current revision", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -569,7 +569,7 @@ test("a stale diagnostic pass cannot mutate the current revision", async () => {
 });
 
 test("a queued layout-warnings prompt is normalized like ordinary feedback", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -604,7 +604,7 @@ test("a queued layout-warnings prompt is normalized like ordinary feedback", asy
 });
 
 test("the inbox survives reopening the same artifact", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -634,7 +634,7 @@ test("the inbox survives reopening the same artifact", async () => {
 });
 
 test("dismissing a warning lasts only for the current artifact revision", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -686,7 +686,7 @@ test("dismissing a warning lasts only for the current artifact revision", async 
 });
 
 test("fatal artifact failures still reach the agent without user action", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -714,7 +714,7 @@ test("fatal artifact failures still reach the agent without user action", async 
 });
 
 test("stale artifact failures and duplicate diagnostic sequences have no side effects", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -757,7 +757,7 @@ test("stale artifact failures and duplicate diagnostic sequences have no side ef
 });
 
 test("ending a session makes feedback return ended", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -775,7 +775,7 @@ test("ending a session makes feedback return ended", async () => {
 });
 
 test("ending a session defaults to agent-initiated and takeFeedback reports who ended it", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -795,7 +795,7 @@ test("ending a session defaults to agent-initiated and takeFeedback reports who 
 });
 
 test("ending a session as the user is recorded distinctly from an agent end", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -815,7 +815,7 @@ test("ending a session as the user is recorded distinctly from an agent end", as
 });
 
 test("agent cleanup cannot overwrite an existing user end", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -836,7 +836,7 @@ test("agent cleanup cannot overwrite an existing user end", async () => {
 });
 
 test("the final feedback batch before an end flags session_ended with who ended it", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -864,7 +864,7 @@ test("the final feedback batch before an end flags session_ended with who ended 
 });
 
 test("queued prompts can atomically carry a browser end intent", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -892,7 +892,7 @@ test("queued prompts can atomically carry a browser end intent", async () => {
 });
 
 test("prompts queued after a session already ended are rejected, not silently stored (#171)", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -924,7 +924,7 @@ test("prompts queued after a session already ended are rejected, not silently st
 });
 
 test("a Send & End that arrives after the session already ended is also rejected (#171)", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -956,7 +956,7 @@ test("a Send & End that arrives after the session already ended is also rejected
 });
 
 test("late layout diagnostics do not reopen ended sessions or become feedback", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -984,7 +984,7 @@ test("late layout diagnostics do not reopen ended sessions or become feedback", 
 });
 
 test("prompts queued before ending are still delivered before the ended status", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1013,7 +1013,7 @@ test("prompts queued before ending are still delivered before the ended status",
 });
 
 test("agent replies are stored in session chat history", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1034,7 +1034,7 @@ test("agent replies are stored in session chat history", async () => {
 });
 
 test("freeform user prompts are stored in session chat history", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1059,7 +1059,7 @@ test("freeform user prompts are stored in session chat history", async () => {
 });
 
 test("queued prompt attachments are resolved server-side and client path claims are ignored", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1112,7 +1112,7 @@ test("queued prompt attachments are resolved server-side and client path claims 
 });
 
 test("duplicate attachment ids preserve logical refs and count toward prompt caps", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1203,7 +1203,7 @@ test("duplicate attachment ids preserve logical refs and count toward prompt cap
 });
 
 test("queuePrompts rejects the batch atomically when the count or byte cap is exceeded (C4)", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1263,7 +1263,7 @@ test("queuePrompts rejects the batch atomically when the count or byte cap is ex
 });
 
 test("queuePrompts rejects the batch atomically when an attachment id is unknown (C4)", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1304,7 +1304,7 @@ test("queuePrompts rejects the batch atomically when an attachment id is unknown
 });
 
 test("attachments are dropped when no resolver is supplied", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1332,7 +1332,7 @@ test("attachments are dropped when no resolver is supplied", async () => {
 });
 
 test("referencedAttachmentIds covers pending prompts, then the delivery read grace", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1374,7 +1374,7 @@ test("referencedAttachmentIds covers pending prompts, then the delivery read gra
 });
 
 test("queuePrompts and takeFeedback serialize so a mid-resolution poll never clobbers state (E1)", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");
@@ -1655,7 +1655,7 @@ function unknownAttachmentId(index) {
 }
 
 async function withStore(run) {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-store-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-store-"));
   try {
     const stateFile = path.join(dir, "state.json");
     const artifact = path.join(dir, "artifact.html");

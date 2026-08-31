@@ -10,21 +10,25 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const crossSpawn = createRequire(import.meta.url)("cross-spawn");
+// Static import, not `createRequire(...)("cross-spawn")`. A runtime require cannot be
+// followed by the bundler, which left `dist/cli.mjs` needing `node_modules` beside it -
+// the one thing that stops a plugin installed straight from a git clone from running.
+import crossSpawn from "cross-spawn";
 
 // Canonical schema identifier for the Agent Plugins version this manifest targets.
 // Clients select their local validation rules from this string; they never fetch it.
 export const PLUGIN_SCHEMA_URL = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 
 // Not in package.json (npm infers no author), so the one authoritative copy lives here.
-const PLUGIN_AUTHOR = Object.freeze({ name: "Kun Chen", url: "https://github.com/kunchenguid" });
+// This is a local fork of lavish-axi by Kun Chen (MIT); see LICENSE for the original copyright.
+const PLUGIN_AUTHOR = Object.freeze({ name: "Local fork" });
 
 export function spawnPluginClientSync(command, args) {
   return crossSpawn.sync(command, args, { encoding: "utf8" });
@@ -36,6 +40,7 @@ export function spawnPluginClientSync(command, args) {
  * @property {typeof writeFileSync} [writeFileSync]
  * @property {typeof renameSync} [renameSync]
  * @property {typeof rmSync} [rmSync]
+ * @property {typeof unlinkSync} [unlinkSync]
  * @property {typeof statSync} [statSync]
  * @property {typeof symlinkSync} [symlinkSync]
  * @property {NodeJS.Platform} [platform]
@@ -252,6 +257,28 @@ export function writeTextFileAtomically(file, content, operations = {}) {
  * @param {string} linkPath absolute path of the link to create
  * @param {NodeJS.Platform} platform host platform
  */
+/**
+ * Remove a directory link this module created, never the directory it points at.
+ *
+ * `rmSync(link, { force: true })` without `recursive` resolves the link and throws
+ * `ERR_FS_EISDIR` on a link to a directory (Node >= 22), which used to roll every
+ * Cursor repair back to `unsupported`. `unlinkSync` is the correct call for a POSIX
+ * symlink; the recursive `rmSync` fallback is what removes a Windows junction, where
+ * `unlink` refuses. Neither form follows the link into its target.
+ *
+ * @param {string} linkPath link to remove
+ * @param {{ unlinkSync?: typeof unlinkSync, rmSync?: typeof rmSync }} [operations]
+ */
+function removeDirectoryLink(linkPath, operations = {}) {
+  const unlink = operations.unlinkSync || unlinkSync;
+  const remove = operations.rmSync || rmSync;
+  try {
+    unlink(linkPath);
+  } catch {
+    remove(linkPath, { recursive: true, force: true });
+  }
+}
+
 function createDirectoryLink(createSymlink, pluginRoot, linkPath, platform) {
   if (platform === "win32") {
     try {
@@ -283,7 +310,7 @@ export function linkCursorLocalPlugin(localPluginsDir, pluginRoot, pluginName, o
   const createSymlink = (linkTarget, linkPath) =>
     createDirectoryLink(operations.symlinkSync || symlinkSync, linkTarget, linkPath, platform);
   const rename = operations.renameSync || renameSync;
-  const remove = operations.rmSync || rmSync;
+  const removeLink = (linkPath) => removeDirectoryLink(linkPath, operations);
   let existing = null;
   try {
     existing = lstatSync(target);
@@ -309,10 +336,10 @@ export function linkCursorLocalPlugin(localPluginsDir, pluginRoot, pluginName, o
         movedPrevious = true;
       }
       rename(replacement, target);
-      if (movedPrevious) remove(previous, { force: true });
+      if (movedPrevious) removeLink(previous);
     } catch (error) {
       try {
-        remove(replacement, { force: true });
+        removeLink(replacement);
         if (movedPrevious) rename(previous, target);
       } catch {
         // Preserve the original replacement error.

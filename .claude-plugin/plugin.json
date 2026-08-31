@@ -1,0 +1,18 @@
+{
+  "name": "showme",
+  "description": "Open agent-generated HTML in a local browser to review it: point at elements, annotate text, and send feedback back to the agent instead of reading a wall of text.",
+  "version": "0.1.63",
+  "author": {
+    "name": "Local fork of lavish-axi by Kun Chen (MIT)"
+  },
+  "license": "MIT",
+  "keywords": [
+    "html",
+    "review",
+    "artifacts",
+    "visualization",
+    "annotation"
+  ],
+  "repository": "https://github.com/josuemarlique/showme",
+  "homepage": "https://github.com/josuemarlique/showme#readme"
+}

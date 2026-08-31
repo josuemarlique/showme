@@ -10,7 +10,7 @@ export const PLAYBOOKS = [
     use_when: "Explain relationships, flows, state, architecture, and concepts with illustrations",
     choose: [
       "Default to hand-authored inline SVG: it gives proportion, emphasis, spatial metaphor, and annotation-ready structure that generated layouts cannot.",
-      "Use Mermaid only when the user asks for an editable whiteboard: rendered Mermaid in a `.mermaid` container becomes an Excalidraw whiteboard in the Lavish browser.",
+      "Use Mermaid only when the user asks for an editable whiteboard: rendered Mermaid in a `.mermaid` container becomes an Excalidraw whiteboard in the Showme browser.",
       "For large systems, draw a small overview illustration and put detail in module cards below it, instead of one dense auto-laid graph.",
     ],
     structure: [
@@ -27,7 +27,7 @@ export const PLAYBOOKS = [
       "Keep labels to a few words and put prose beside the figure in HTML - SVG text does not wrap, so short labels are also the overflow discipline.",
       "Keep figures self-contained: no external images, fonts, or scripts, so exports render offline.",
       "Render-verify before serving: screenshot the artifact in light, dark, and a narrow viewport - the layout audit deliberately skips SVG interiors.",
-      "When the user asked for a whiteboard, initialize Mermaid theme-aware with the `lavish-axi design` snippet rather than hardcoding one theme.",
+      "When the user asked for a whiteboard, initialize Mermaid theme-aware with the `showme design` snippet rather than hardcoding one theme.",
     ],
     pitfalls: [
       "Do not cram every file or function into one figure when a layered explanation would be clearer.",
@@ -35,8 +35,8 @@ export const PLAYBOOKS = [
       "Do not reach for Mermaid to save authoring effort - it surrenders position, size, and emphasis to the engine.",
       "Do not present unverified architecture claims as facts. Cite the files or commands that support them.",
     ],
-    lavish_notes: [
-      "A Lavish diagram should invite precise annotation: make modules, edges, and captions easy to click and discuss.",
+    showme_notes: [
+      "A Showme diagram should invite precise annotation: make modules, edges, and captions easy to click and discuss.",
       "When a relationship is uncertain, label it as a question so the user can resolve it in the review loop.",
     ],
   },
@@ -63,8 +63,8 @@ export const PLAYBOOKS = [
       "Do not hide the important conclusion below a large undifferentiated grid.",
       "Do not use color as the only status signal.",
     ],
-    lavish_notes: [
-      "A Lavish table should make individual rows easy annotation targets.",
+    showme_notes: [
+      "A Showme table should make individual rows easy annotation targets.",
       "If a row implies a follow-up change, include an action control that queues a specific prompt.",
     ],
   },
@@ -91,8 +91,8 @@ export const PLAYBOOKS = [
       "Do not compare vague summaries when concrete examples are available.",
       "Do not bury assumptions that would change the recommendation.",
     ],
-    lavish_notes: [
-      "A Lavish comparison should let the user annotate the exact option or tradeoff they want changed.",
+    showme_notes: [
+      "A Showme comparison should let the user annotate the exact option or tradeoff they want changed.",
       "If the goal is selection, provide controls that queue the chosen option with rationale.",
     ],
   },
@@ -119,11 +119,11 @@ export const PLAYBOOKS = [
       "Do not only focus on ambiguous decisions and omit the actual proposal.",
       "Do not omit failure modes, migration concerns, or backwards compatibility questions.",
     ],
-    lavish_notes: ["A Lavish plan should make a plan and its uncertainties easy to annotate before code exists."],
+    showme_notes: ["A Showme plan should make a plan and its uncertainties easy to annotate before code exists."],
   },
   {
     id: "code",
-    use_when: "Render source code, code files, patches, PR diffs, and before/after code inside Lavish artifacts",
+    use_when: "Render source code, code files, patches, PR diffs, and before/after code inside Showme artifacts",
     choose: [
       "Use this whenever an artifact shows source code: a snippet, full file, patch, PR diff, local change set, or before/after code.",
       "Use File for one code file, FileDiff for old/new versions or parsed patch metadata, and CodeView only when several files or diffs need coordinated navigation.",
@@ -146,11 +146,11 @@ export const PLAYBOOKS = [
   const options = { theme, themeType: "dark", overflow: "wrap" };
   const oldFile = {
     name: "src/greeting.ts",
-    contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Lavish\\"));\\n",
+    contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Showme\\"));\\n",
   };
   const newFile = {
     name: "src/greeting.ts",
-    contents: "export function greet(name: string) {\\n  return \\"Hello, \\" + name + \\"!\\";\\n}\\n\\nconsole.log(greet(\\"Lavish\\"));\\n",
+    contents: "export function greet(name: string) {\\n  return \\"Hello, \\" + name + \\"!\\";\\n}\\n\\nconsole.log(greet(\\"Showme\\"));\\n",
   };
 
   new File(options).render({
@@ -176,8 +176,8 @@ export const PLAYBOOKS = [
       "Do not show huge unrelated files when a focused render range, parsed patch file, or grouped summary would be clearer.",
       "Do not separate a claim from the code lines that prove it.",
     ],
-    lavish_notes: [
-      "A Lavish code artifact should make each file, hunk, and relevant line easy to annotate precisely.",
+    showme_notes: [
+      "A Showme code artifact should make each file, hunk, and relevant line easy to annotate precisely.",
       "When a user action should trigger a fix, queue prompts that name the file path, line range, and desired change.",
       "If the artifact combines code with a plan, table, or comparison, read those playbooks too and keep @pierre/diffs responsible for the code surface.",
     ],
@@ -198,13 +198,13 @@ export const PLAYBOOKS = [
       "Show selected state separately from queued state so the user trusts what will be sent back.",
     ],
     design_rules: [
-      "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-lavish-action. Build choice and option UIs from these whenever you can.",
-      "For reversible choices, do not call window.lavish.queuePrompt() from radio change handlers or option click handlers. Those handlers should only update local selected state.",
-      "Use a per-question form submit or explicit Queue answer button to read the current values and call window.lavish.queuePrompt() exactly once for the final answer.",
-      "Put data-lavish-action only on custom (non-native) elements that should act like a feedback control - typically a styled div or span you made clickable - so Lavish does not annotate it and shows a pointer cursor instead.",
-      "Use data-lavish-question on a question wrapper or pass queueKey when multiple pre-send updates should replace the prior unsent answer for the same question.",
+      "Native controls - radios, checkboxes, text inputs, selects, textareas, buttons, options, labels, disclosure summaries, and contenteditable regions - are interactive automatically: clicks toggle, focus, and type instead of annotating, so they do not need data-showme-action. Build choice and option UIs from these whenever you can.",
+      "For reversible choices, do not call window.showme.queuePrompt() from radio change handlers or option click handlers. Those handlers should only update local selected state.",
+      "Use a per-question form submit or explicit Queue answer button to read the current values and call window.showme.queuePrompt() exactly once for the final answer.",
+      "Put data-showme-action only on custom (non-native) elements that should act like a feedback control - typically a styled div or span you made clickable - so Showme does not annotate it and shows a pointer cursor instead.",
+      "Use data-showme-question on a question wrapper or pass queueKey when multiple pre-send updates should replace the prior unsent answer for the same question.",
       "Pass options such as tag, text, selector, target, data, queueKey, or element when they help the agent understand exactly what the user chose.",
-      "Call window.lavish.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
+      "Call window.showme.sendQueuedPrompts() only when the control should immediately send committed feedback instead of waiting for the user to press Send to Agent.",
       "Make queued prompts specific enough that the agent can act without asking a follow-up question.",
       "Keep native browser controls accessible and readable on mobile.",
     ],
@@ -214,11 +214,11 @@ export const PLAYBOOKS = [
       "Do not hide the difference between selected locally and queued for the agent.",
       "Do not require interaction for content the user only needs to read.",
     ],
-    lavish_notes: [
-      "Lavish is strongest when the artifact becomes a focused review surface and not just a static page.",
-      'A native single-choice question should submit the final value: `<form data-lavish-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.lavish.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
-      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-lavish-action to queue the final selected value.",
-      "Use window.lavish.queuePrompt for user intent, not internal analytics or UI-only state changes.",
+    showme_notes: [
+      "Showme is strongest when the artifact becomes a focused review surface and not just a static page.",
+      'A native single-choice question should submit the final value: `<form data-showme-question="plan" onsubmit="event.preventDefault(); const choice = new FormData(event.currentTarget).get(\'plan\'); if (choice) window.showme.queuePrompt(\'Use the \' + choice + \' plan\', { tag: \'choice\', text: \'Plan: \' + choice, element: event.currentTarget, data: { question: \'plan\', answer: choice } });"><label><input type="radio" name="plan" value="Starter"> Starter</label><label><input type="radio" name="plan" value="Pro"> Pro</label><button type="submit">Queue this answer</button></form>`.',
+      "A custom choice UI should make option buttons update local state, then use a separate Queue answer button with data-showme-action to queue the final selected value.",
+      "Use window.showme.queuePrompt for user intent, not internal analytics or UI-only state changes.",
       "End input paths with an obvious way for the user to send feedback back to the agent.",
     ],
   },
@@ -245,8 +245,8 @@ export const PLAYBOOKS = [
       "Do not paste a scroll-page outline into fixed-size frames without rewriting the narrative.",
       "Do not make consecutive slides with the same spatial composition unless repetition is the point.",
     ],
-    lavish_notes: [
-      "A Lavish slide deck can still collect feedback, but each prompt should refer to a slide or decision.",
+    showme_notes: [
+      "A Showme slide deck can still collect feedback, but each prompt should refer to a slide or decision.",
       "Use slides for persuasion or presentation, not for dense code review.",
     ],
   },

@@ -1,17 +1,17 @@
 {
-  "name": "lavish-axi",
+  "name": "showme",
   "version": "0.1.63",
+  "private": true,
   "packageManager": "pnpm@11.1.1",
-  "description": "HTML is the new markdown. Lavish is the new editor for your HTML artifacts.",
+  "description": "HTML is the new markdown. Showme is the new editor for your HTML artifacts.",
   "type": "module",
   "bin": {
-    "lavish-axi": "dist/cli.mjs"
+    "showme": "dist/cli.mjs"
   },
   "files": [
     "dist",
     "plugin.json",
-    "skills/lavish",
-    "lavish-editor-marketing/renders/lavish-editor-marketing.gif",
+    "skills/showme",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "README.md"
@@ -66,16 +66,5 @@
     "review",
     "collaboration"
   ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kunchenguid/lavish-axi.git"
-  },
-  "bugs": {
-    "url": "https://github.com/kunchenguid/lavish-axi/issues"
-  },
-  "homepage": "https://github.com/kunchenguid/lavish-axi#readme",
-  "publishConfig": {
-    "access": "public"
-  }
+  "license": "MIT"
 }

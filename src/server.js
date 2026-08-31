@@ -16,7 +16,7 @@ import {
   classifyMaterialRectEscape,
   createArtifactSdk,
   deriveAttachmentNoticeState,
-  deriveLavishQueueKey,
+  deriveShowmeQueueKey,
   findStableLayoutFindings,
   isMaterialPageOverflow,
   isModeToggleHotkeyEvent,
@@ -45,14 +45,8 @@ import {
   saveWhiteboard,
   writeWhiteboardFeedbackFiles,
 } from "./whiteboard-store.js";
-import {
-  buildSelfContainedHtml,
-  exportFileName,
-  exportWarningSummaries,
-  splitExportWarnings,
-} from "./export-bundle.js";
-import { hostRejectedShareWrite, publishedDespiteError, publishToHtmlApp } from "./html-app.js";
-import { injectLavishSdk } from "./html-transform.js";
+import { buildSelfContainedHtml, exportFileName, splitExportWarnings } from "./export-bundle.js";
+import { injectShowmeSdk } from "./html-transform.js";
 import {
   bindHost,
   extraAllowedHosts,
@@ -65,9 +59,7 @@ import {
   resolveListenHosts,
   sanitizeListenHosts,
 } from "./paths.js";
-import { detectTailscale } from "./tailscale.js";
 import { canonicalFile, SessionStore, sessionKey } from "./session-store.js";
-import { generateSharePassword } from "./share-password.js";
 import {
   ACCEPTED_IMAGE_MIME,
   isValidAttachmentKey,
@@ -101,8 +93,6 @@ const designAssetUrls = {
 
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000;
 const WHITEBOARD_CHANNEL_TOKEN_TTL_MS = 5 * 60_000;
-const NETWORK_RECONCILE_CACHE_MS = 1_000;
-const TAILSCALE_BIND_RETRY_DELAYS_MS = [100, 250, 500];
 // An escaped popup can navigate to an artifact-owned HTML or SVG asset on the
 // server origin. Keep every artifact response sandboxed at the response layer
 // so active documents stay opaque-origin even when they are top-level.
@@ -125,7 +115,7 @@ export const BATCH_RELOAD_DEBOUNCE_MS = 900;
 
 // The whiteboard frame bundle (Excalidraw + Mermaid converter + React) is
 // produced by `scripts/build.js` into dist/whiteboard. Packaged runs find it
-// next to the served bundle; source runs (node bin/lavish-axi.js) fall back to
+// next to the served bundle; source runs (node bin/showme.js) fall back to
 // the repo's dist output, so `pnpm run build` must have run at least once.
 export function defaultWhiteboardAssetsDir() {
   const packaged = fileURLToPath(new URL("./whiteboard", import.meta.url));
@@ -236,11 +226,11 @@ export function isValidWhiteboardChannelToken(token, secret, sessionKey, now = D
 
 // A detached server should not live forever. When no browser chrome (SSE) and no agent poll
 // are connected for this long, the server shuts itself down so it stops dangling. The next
-// `lavish-axi <file>` invocation re-spawns a fresh server and adopts resumable sessions from
+// `showme <file>` invocation re-spawns a fresh server and adopts resumable sessions from
 // state.json. Browser-ended sessions still require the explicit --reopen opt-in. Set
-// LAVISH_AXI_IDLE_TIMEOUT_MS to 0/off to disable, or to a custom millisecond budget.
+// SHOWME_IDLE_TIMEOUT_MS to 0/off to disable, or to a custom millisecond budget.
 export function resolveIdleTimeoutMs(env = process.env) {
-  const raw = env.LAVISH_AXI_IDLE_TIMEOUT_MS?.trim();
+  const raw = env.SHOWME_IDLE_TIMEOUT_MS?.trim();
   if (raw === undefined || raw === "") return DEFAULT_IDLE_TIMEOUT_MS;
   if (raw === "0" || raw.toLowerCase() === "off") return null;
   const value = Number(raw);
@@ -264,25 +254,15 @@ export async function serve({
   hosts,
   linkHost: linkHostName,
   allowedHosts,
-  detectTailscale: detectTailscaleFn,
   lookupHost,
   whiteboardAssetsDir = defaultWhiteboardAssetsDir(),
 } = {}) {
   const extraHosts = allowedHosts ?? extraAllowedHosts(env);
-  const envHost = env.LAVISH_AXI_HOST?.trim();
-  const autoTailscale = !envHost;
-  const detect = detectTailscaleFn === undefined ? detectTailscale : detectTailscaleFn;
-  const tailscale = !hosts?.length && autoTailscale && typeof detect === "function" ? await detect() : null;
-  const requestedListenHosts = sanitizeListenHosts(
-    hosts?.length ? hosts : resolveListenHosts({ host, env, tailscale }),
-  );
+  const requestedListenHosts = sanitizeListenHosts(hosts?.length ? hosts : resolveListenHosts({ host, env }));
   const listenHosts = await resolveConcreteListenHosts(requestedListenHosts, {
     ...(lookupHost ? { lookup: lookupHost } : {}),
   });
-  const activeTailscaleNetwork = tailscaleNetworkKey(tailscale);
-  let tailscalePhoneReady = false;
-  let networkWarning = typeof tailscale?.warning === "string" ? tailscale.warning : "";
-  let resolvedLinkHost = linkHostName ?? resolveLinkHost({ env, tailscale, fallbackHost: host });
+  const resolvedLinkHost = linkHostName ?? resolveLinkHost({ env, fallbackHost: host });
   const app = express();
   const store = new SessionStore(stateFile);
   const events = new EventEmitter();
@@ -296,39 +276,11 @@ export async function serve({
   // Sessions with at least one warning the user queued that has not been re-checked yet.
   const outstandingRepairBatches = new Set();
   const diagnosticViewportClasses = resolveDiagnosticViewportClasses();
-  const verbose = debug || env.LAVISH_AXI_DEBUG === "1";
+  const verbose = debug || env.SHOWME_DEBUG === "1";
   const writeLog = typeof log === "function" ? log : (line) => process.stderr.write(`${line}\n`);
-  const logEvent = verbose ? (line) => writeLog(`[lavish] ${line}`) : null;
-  if (networkWarning) writeLog(`[lavish] WARNING: ${networkWarning}`);
+  const logEvent = verbose ? (line) => writeLog(`[showme] ${line}`) : null;
   let publicPort = port;
   let serverReady = false;
-  let networkReconcileCheckedAt = 0;
-  let cachedNetworkStale = false;
-  /** @type {Promise<boolean> | null} */
-  let networkReconcilePromise = null;
-
-  async function reconcileTailscaleNetwork() {
-    if (Date.now() - networkReconcileCheckedAt < NETWORK_RECONCILE_CACHE_MS) return cachedNetworkStale;
-    if (networkReconcilePromise) return networkReconcilePromise;
-    networkReconcilePromise = (async () => {
-      try {
-        const detectedTailscale = await detect();
-        const detectedNetwork = tailscaleNetworkKey(detectedTailscale);
-        const stale = detectedNetwork !== activeTailscaleNetwork;
-        if (stale) networkWarning = typeof detectedTailscale?.warning === "string" ? detectedTailscale.warning : "";
-        return stale;
-      } catch {
-        return false;
-      }
-    })();
-    try {
-      cachedNetworkStale = await networkReconcilePromise;
-      networkReconcileCheckedAt = Date.now();
-      return cachedNetworkStale;
-    } finally {
-      networkReconcilePromise = null;
-    }
-  }
 
   function finishFeedbackDelivery(key, result) {
     if (result.status !== "feedback") return;
@@ -392,12 +344,12 @@ export async function serve({
     const persistedNothing = !session || Boolean(session.rejected) || Boolean(session.conflict);
     if (restoreError) {
       writeLog(
-        `[lavish] closed poll feedback restore failed; the batch was lost: ${restoreError?.message || restoreError}`,
+        `[showme] closed poll feedback restore failed; the batch was lost: ${restoreError?.message || restoreError}`,
       );
     } else if (persistedNothing) {
-      writeLog("[lavish] closed poll feedback restore was refused; nothing was persisted and the batch was lost");
+      writeLog("[showme] closed poll feedback restore was refused; nothing was persisted and the batch was lost");
     } else if (!restoredPrompts || JSON.stringify(restoredPrompts) !== JSON.stringify(prompts) || !failuresRestored) {
-      writeLog("[lavish] closed poll feedback restore was incomplete; delivery was not marked");
+      writeLog("[showme] closed poll feedback restore was incomplete; delivery was not marked");
     }
     const pendingAfterRestore =
       (Array.isArray(restoredPrompts) && restoredPrompts.length > 0) ||
@@ -407,7 +359,7 @@ export async function serve({
   // Whiteboard sidecar files live next to state.json, keyed by session + diagram.
   const whiteboardStateRoot = path.dirname(stateFile);
 
-  // DNS-rebinding guard. isSameOriginRequest (used on /share and the whiteboard
+  // DNS-rebinding guard. isSameOriginRequest (used on the prompts and whiteboard
   // write routes) stops classic cross-origin CSRF but NOT DNS rebinding: a page
   // that rebinds its own domain to this loopback port sends that domain in both
   // Origin and Host, so the two still match. The robust defense is a Host-header
@@ -415,11 +367,11 @@ export async function serve({
   // never one of the hostnames this server answers to.
   //
   // Loopback names are always accepted. Binding to a concrete interface
-  // (LAVISH_AXI_HOST) or naming a link host (LAVISH_AXI_LINK_HOST) adds that host,
+  // (SHOWME_HOST) or naming a link host (SHOWME_LINK_HOST) adds that host,
   // so an operator who intentionally exposes the server on a specific interface
   // keeps rebinding protection while their chosen hostname works. Additional
   // names (a reverse-proxy hostname, extra interfaces) are an explicit opt-in via
-  // LAVISH_AXI_ALLOWED_HOSTS; a lone "*" there disables the guard for operators
+  // SHOWME_ALLOWED_HOSTS; a lone "*" there disables the guard for operators
   // who front the server with their own authentication. When a reverse proxy sits
   // in front, X-Forwarded-Host is validated too (see isAllowedRequestHost).
   //
@@ -478,9 +430,7 @@ export async function serve({
         status: 403,
         error: "forbidden host",
         title: "Wrong address",
-        message: tailscalePhoneReady
-          ? "This Lavish review server does not accept that host. Open the working URL below on this computer or your phone through Tailscale."
-          : "This Lavish review server does not accept that host. Open the working URL below on this computer. Phone access is unavailable.",
+        message: "This Showme review server does not accept that host. Open the working URL below on this computer.",
       });
     });
   }
@@ -533,20 +483,10 @@ export async function serve({
 
   app.get("/health", async (req, res) => {
     if (!serverReady) {
-      res.status(503).json({ ok: false, app: "lavish-axi", version });
+      res.status(503).json({ ok: false, app: "showme", version });
       return;
     }
-    const networkStale =
-      req.query.reconcile_network === "1" && autoTailscale && typeof detect === "function"
-        ? await reconcileTailscaleNetwork()
-        : false;
-    res.json({
-      ok: true,
-      app: "lavish-axi",
-      version,
-      ...(networkStale ? { network_stale: true } : {}),
-      ...(networkWarning ? { network_warning: networkWarning } : {}),
-    });
+    res.json({ ok: true, app: "showme", version });
   });
 
   let shutdownResolve;
@@ -575,9 +515,9 @@ export async function serve({
       const sessionUrl = `http://${hostForUrl(resolvedLinkHost)}:${publicPort}/session/${key}`;
       // A user-initiated end (ending or send-and-ending from the browser) means the human
       // deliberately closed the review surface. Silently reopening it on the next
-      // `lavish-axi <file>` is the exact behavior this route exists to prevent - require an
+      // `showme <file>` is the exact behavior this route exists to prevent - require an
       // explicit `reopen` opt-in instead of reviving it automatically. Agent-initiated ends
-      // (`lavish-axi end`) keep reviving on the next open, same as before this change.
+      // (`showme end`) keep reviving on the next open, same as before this change.
       if (existing?.status === "ended" && existing.ended_by === "user" && !reopen) {
         logEvent?.(`session open blocked (user-ended) key=${key} file=${file}`);
         res.json({
@@ -585,7 +525,6 @@ export async function serve({
           file,
           url: sessionUrl,
           status: "user-ended",
-          ...(networkWarning ? { network_warning: networkWarning } : {}),
         });
         return;
       }
@@ -602,7 +541,6 @@ export async function serve({
         file,
         url,
         status: "opened",
-        ...(networkWarning ? { network_warning: networkWarning } : {}),
       });
     } catch (error) {
       next(error);
@@ -784,7 +722,7 @@ export async function serve({
   });
 
   // Passive detection. A diagnostic pass updates the warning inbox and notifies open browser
-  // chromes - it never emits "feedback", so it can never make `lavish-axi poll` return and can
+  // chromes - it never emits "feedback", so it can never make `showme poll` return and can
   // never wake an agent. Only the user's explicit "Queue selected fixes" does that, through the
   // ordinary prompt queue.
   app.post("/api/:key/layout-diagnostics", async (req, res, next) => {
@@ -929,93 +867,9 @@ export async function serve({
       // renders the exported HTML instead of saving it.
       res.setHeader("content-security-policy", ARTIFACT_CONTENT_SECURITY_POLICY);
       res.setHeader("content-disposition", exportContentDisposition(session.file));
-      res.setHeader("x-lavish-export-warning-count", String(unresolved.length));
-      res.setHeader("x-lavish-export-notice-count", String(notices.length));
+      res.setHeader("x-showme-export-warning-count", String(unresolved.length));
+      res.setHeader("x-showme-export-notice-count", String(notices.length));
       res.type("html").send(html);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Hosted share: build the local-inlined artifact and publish it to ht-ml.app, a third-party
-  // hosting service not part of Lavish, returning the share URL. Publishing sends the artifact
-  // to ht-ml.app's servers. Remote CDN/font references are left intact for the viewer's browser
-  // to load.
-  // Publishing creates a public third-party page unless a password is supplied, so this is gated
-  // behind a same-origin check - a cross-origin page must not be able to drive a publish via the
-  // loopback server.
-  app.post("/api/:key/share", async (req, res, next) => {
-    try {
-      if (!isSameOriginRequest(req, allowedHostnames, allowAnyHostname)) {
-        res.status(403).json({ error: "cross-origin share request rejected" });
-        return;
-      }
-      const session = await store.findByKey(req.params.key);
-      if (!session) {
-        res.status(404).json({ error: "session not found" });
-        return;
-      }
-      const body = req.body || {};
-      // The password is generated here rather than in the chrome because chrome-client.js is
-      // served raw and cannot import modules: a browser-side generator would be a second copy of
-      // the alphabet and length rules, free to drift from the one the CLI uses.
-      const generatePassword = body.generate_password === true;
-      const password = generatePassword ? generateSharePassword() : optionalBodyString(body.password);
-      const source = await readFile(session.file, "utf8");
-      const root = path.dirname(session.file);
-      const { html, warnings } = await buildSelfContainedHtml(source, {
-        baseDir: root,
-        confineDir: root,
-        resolveAbsolute: resolveDesignAssetPath,
-      });
-      let site;
-      try {
-        site = await publishToHtmlApp(html, { password });
-      } catch (error) {
-        // Same three-way split the CLI makes, from the same shared classifiers, and the stakes
-        // here are higher: the password was minted in this request, so a failure that discards it
-        // can leave the page live behind a secret nobody was ever shown.
-        const message = error instanceof Error ? error.message : String(error);
-        // A 200 the host answered with an unreadable body is not an unknown outcome - the page
-        // landed - so whatever fields did arrive go back rather than being hedged away.
-        const landed = publishedDespiteError(error);
-        if (landed) {
-          res.status(502).json({
-            error: message,
-            outcome: "published-incomplete",
-            public: !password,
-            ...(landed.url ? { url: landed.url } : {}),
-            ...(landed.siteId ? { site_id: landed.siteId } : {}),
-            ...(landed.updateKey ? { update_key: landed.updateKey } : {}),
-            ...(generatePassword ? { password } : {}),
-          });
-          return;
-        }
-        // Only a 4xx proves nothing was published.
-        const rejected = hostRejectedShareWrite(error);
-        res.status(502).json({
-          error: message,
-          outcome: rejected ? "rejected" : "indeterminate",
-          ...(rejected
-            ? {}
-            : {
-                public: !password,
-                // A rejection gates nothing, so it must never carry the password.
-                ...(generatePassword ? { password } : {}),
-              }),
-        });
-        return;
-      }
-      const { unresolved, notices } = splitExportWarnings(warnings);
-      res.json({
-        ...site,
-        // Only a password Lavish minted goes back to the browser; one the user typed is already
-        // theirs, and echoing it would put it in a field they did not ask to have filled.
-        ...(generatePassword ? { password } : {}),
-        ...(warnings.length ? { warnings: exportWarningSummaries(warnings) } : {}),
-        ...(unresolved.length ? { unresolved_local_assets: exportWarningSummaries(unresolved) } : {}),
-        ...(notices.length ? { notices: exportWarningSummaries(notices) } : {}),
-      });
     } catch (error) {
       next(error);
     }
@@ -1047,7 +901,7 @@ export async function serve({
       const artifactHtml = await readFile(session.file, "utf8").catch(() => "");
       const { faviconTag, title } = extractArtifactHead(artifactHtml);
       // Nothing legitimately frames the review chrome - it is the top-level
-      // page, and shares/exports ship standalone HTML rather than embedding it.
+      // page, and exports ship standalone HTML rather than embedding it.
       // Refusing to be framed denies an attacker page both a window handle to
       // this chrome and a clickjacking surface over Send. Scoped to this route:
       // /artifact/* is framed by this page and /whiteboard-frame is framed by
@@ -1059,7 +913,7 @@ export async function serve({
         createChromeHtml(session, {
           layoutGateEnabled: shouldEnableLayoutGate(req.query || {}),
           faviconTag,
-          title: title ? `${title} · Lavish` : "Lavish Editor",
+          title: title ? `${title} · Showme` : "Showme",
           artifactRevision: chromeLoad.artifact_revision,
           artifactLoadToken: chromeLoad.artifact_load_token,
           artifactLoadSequence: chromeLoad.artifact_load_sequence,
@@ -1136,7 +990,7 @@ export async function serve({
           .status(409)
           .type("html")
           .send(
-            "<!doctype html><title>Artifact load expired</title><p>This artifact load is no longer current. Reload Lavish to continue.</p>",
+            "<!doctype html><title>Artifact load expired</title><p>This artifact load is no longer current. Reload Showme to continue.</p>",
           );
         return;
       }
@@ -1147,11 +1001,11 @@ export async function serve({
           .status(409)
           .type("html")
           .send(
-            "<!doctype html><title>Artifact load expired</title><p>This artifact load is no longer current. Reload Lavish to continue.</p>",
+            "<!doctype html><title>Artifact load expired</title><p>This artifact load is no longer current. Reload Showme to continue.</p>",
           );
         return;
       }
-      res.type("html").send(injectLavishSdk(html, key, verified.artifact_revision, verified.artifact_load_token));
+      res.type("html").send(injectShowmeSdk(html, key, verified.artifact_revision, verified.artifact_load_token));
     } catch (error) {
       next(error);
     }
@@ -1211,7 +1065,7 @@ export async function serve({
           res.write(`event: layout-warnings\ndata: ${JSON.stringify({ warnings })}\n\n`);
         }
       };
-      // A session end (`lavish-axi end` or the browser's own End/Send & End) must reach every
+      // A session end (`showme end` or the browser's own End/Send & End) must reach every
       // attached chrome, not just a poll waiter - otherwise a tab left open keeps accepting Sends
       // nobody will ever poll (#171).
       const sendEnded = (key, endedBy) => {
@@ -1424,7 +1278,7 @@ export async function serve({
   });
 
   // Writing to the local state directory is a state-changing action, so both
-  // whiteboard write routes are same-origin guarded like /share - a hostile
+  // whiteboard write routes are same-origin guarded like /prompts - a hostile
   // cross-origin page must not be able to fill the state dir through the
   // loopback server.
   app.put("/api/:key/whiteboard/:index", async (req, res, next) => {
@@ -1580,46 +1434,18 @@ export async function serve({
   const boundHosts = [];
   let boundPort = port;
   for (const listenHost of listenHosts) {
-    const retryDelays = listenHost === tailscale?.ipv4 ? TAILSCALE_BIND_RETRY_DELAYS_MS : [];
-    let retryIndex = 0;
-    while (true) {
-      try {
-        const httpServer = await listenHttp(app, boundPort, listenHost);
-        if (boundPort === 0) boundPort = httpServer.address().port;
-        httpServers.push(httpServer);
-        boundHosts.push(listenHost);
-        break;
-      } catch (error) {
-        if (httpServers.length === 0) throw error;
-        if (retryIndex < retryDelays.length) {
-          await new Promise((resolve) => setTimeout(resolve, retryDelays[retryIndex]));
-          retryIndex += 1;
-          continue;
-        }
-        if (listenHost === tailscale?.ipv4) {
-          networkWarning = "Tailscale binding failed; there is no phone access. Lavish remains available on loopback.";
-          writeLog(`[lavish] WARNING: ${networkWarning} Address: ${listenHost}:${boundPort}.`);
-        } else {
-          logEvent?.(`failed to bind ${listenHost}:${boundPort}: ${error instanceof Error ? error.message : error}`);
-        }
-        break;
-      }
+    try {
+      const httpServer = await listenHttp(app, boundPort, listenHost);
+      if (boundPort === 0) boundPort = httpServer.address().port;
+      httpServers.push(httpServer);
+      boundHosts.push(listenHost);
+    } catch (error) {
+      if (httpServers.length === 0) throw error;
+      logEvent?.(`failed to bind ${listenHost}:${boundPort}: ${error instanceof Error ? error.message : error}`);
     }
   }
   if (httpServers.length === 0) {
-    throw new Error("Lavish server failed to bind any address");
-  }
-  tailscalePhoneReady = Boolean(tailscale?.ipv4 && boundHosts.includes(tailscale.ipv4));
-  if (tailscale?.ipv4 && !tailscalePhoneReady) {
-    resolvedLinkHost = linkHostName ?? resolveLinkHost({ env, tailscale: null, fallbackHost: host });
-    const fallbackAllowedHostnames = buildAllowedHostnames({
-      host: requestedListenHosts[0],
-      hosts: [...requestedListenHosts.filter((requestedHost) => requestedHost !== tailscale.ipv4), ...boundHosts],
-      linkHost: resolvedLinkHost,
-      allowedHosts: extraHosts,
-    });
-    allowedHostnames.clear();
-    for (const allowedHostname of fallbackAllowedHostnames) allowedHostnames.add(allowedHostname);
+    throw new Error("Showme server failed to bind any address");
   }
   publicPort = httpServers[0].address().port;
   serverReady = true;
@@ -1800,17 +1626,10 @@ function listenHttp(app, port, host) {
     server.once("error", onError);
     server.once("listening", onListening);
     // `host` has already been sanitized by resolveListenHosts. Keeping this helper
-    // concrete is an important defense: Tailscale reachability must never turn into
+    // concrete is an important defense: reachability must never turn into
     // an all-interfaces wildcard listener.
     server.listen({ port, host });
   });
-}
-
-function tailscaleNetworkKey(tailscale) {
-  if (!tailscale) return "down";
-  if (tailscale.warning) return "incomplete";
-  if (!tailscale.ipv4 || !tailscale.magicDnsName) return "incomplete";
-  return `up\n${tailscale.ipv4}\n${tailscale.magicDnsName}`;
 }
 
 function wantsHtml(req) {
@@ -1819,14 +1638,14 @@ function wantsHtml(req) {
 }
 
 function createLandingHtml() {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lavish Editor</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ef;color:#25221f;font:16px/1.5 system-ui,sans-serif}.card{width:min(560px,calc(100% - 40px));padding:32px;border:1px solid #d9d0c5;border-radius:16px;background:#fffdf9;box-shadow:0 12px 40px #25221f18}h1{margin:0 0 12px;font-size:26px}p{margin:0}</style></head><body><main class="card"><h1>Lavish Editor is running</h1><p>Open the review session URL printed by your agent.</p></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Showme</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ef;color:#25221f;font:16px/1.5 system-ui,sans-serif}.card{width:min(560px,calc(100% - 40px));padding:32px;border:1px solid #d9d0c5;border-radius:16px;background:#fffdf9;box-shadow:0 12px 40px #25221f18}h1{margin:0 0 12px;font-size:26px}p{margin:0}</style></head><body><main class="card"><h1>Showme is running</h1><p>Open the review session URL printed by your agent.</p></main></body></html>`;
 }
 
 function createDeniedHtml({ title, message, workingUrl }) {
   const safeTitle = escapeHtml(title);
   const safeMessage = escapeHtml(message);
   const safeUrl = escapeHtml(workingUrl);
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle} - Lavish Editor</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ef;color:#25221f;font:16px/1.5 system-ui,sans-serif}.card{width:min(560px,calc(100% - 40px));padding:32px;border:1px solid #d9d0c5;border-radius:16px;background:#fffdf9;box-shadow:0 12px 40px #25221f18}h1{margin:0 0 12px;font-size:26px}p{margin:0 0 18px}.url{display:block;padding:12px 14px;border-radius:10px;background:#f0ebe4;color:#25221f;overflow-wrap:anywhere}a{color:inherit;font-weight:700}</style></head><body><main class="card"><h1>${safeTitle}</h1><p>${safeMessage}</p><p>Open this working URL:</p><a class="url" href="${safeUrl}">${safeUrl}</a></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle} - Showme</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ef;color:#25221f;font:16px/1.5 system-ui,sans-serif}.card{width:min(560px,calc(100% - 40px));padding:32px;border:1px solid #d9d0c5;border-radius:16px;background:#fffdf9;box-shadow:0 12px 40px #25221f18}h1{margin:0 0 12px;font-size:26px}p{margin:0 0 18px}.url{display:block;padding:12px 14px;border-radius:10px;background:#f0ebe4;color:#25221f;overflow-wrap:anywhere}a{color:inherit;font-weight:700}</style></head><body><main class="card"><h1>${safeTitle}</h1><p>${safeMessage}</p><p>Open this working URL:</p><a class="url" href="${safeUrl}">${safeUrl}</a></main></body></html>`;
 }
 
 async function readDesignAsset(asset) {
@@ -1889,7 +1708,7 @@ export function buildAllowedHostnames({ host, hosts = [], linkHost: linkHostName
   );
 }
 
-// A lone "*" in LAVISH_AXI_ALLOWED_HOSTS is an explicit opt-out of the Host
+// A lone "*" in SHOWME_ALLOWED_HOSTS is an explicit opt-out of the Host
 // allowlist, for operators who front the server with their own auth/proxy.
 export function allowsAllHosts(allowedHosts = []) {
   return allowedHosts.some((value) => String(value).trim() === "*");
@@ -1946,7 +1765,7 @@ export function isAllowedHostHeader(hostHeader, allowedHostnames) {
 // header is required and must be allowlisted. When an X-Forwarded-Host is present
 // - a reverse proxy in front of the loopback server - its outermost (last) value
 // must ALSO be allowlisted, so a proxy works once its public hostname is added to
-// LAVISH_AXI_ALLOWED_HOSTS. This is an AND check: a client-spoofed forwarded host
+// SHOWME_ALLOWED_HOSTS. This is an AND check: a client-spoofed forwarded host
 // can only narrow access (Host is still checked), never widen it into a bypass. A
 // blank forwarded host is treated as absent, matching how proxies omit it.
 /**
@@ -2011,11 +1830,6 @@ function normalizeOrigin(value) {
   } catch {
     return "";
   }
-}
-
-function optionalBodyString(value) {
-  const trimmed = String(value ?? "").trim();
-  return trimmed || undefined;
 }
 
 // Confines an asset request lexically first, then - like export-bundle.js's guardedRead -
@@ -2084,8 +1898,8 @@ async function watchSession(session, watchers, events, logEvent, reloadDebounceM
 // Watching the artifact's parent directory recursively can stall the event loop when the
 // artifact lives in a large tree (e.g. ~/Downloads). Default to watching only the artifact
 // itself; an artifact opts back into directory-wide live reload via either a
-// `data-lavish-live-reload-root` attribute on its root element or
-// `<meta name="lavish-live-reload" content="root">`.
+// `data-showme-live-reload-root` attribute on its root element or
+// `<meta name="showme-live-reload" content="root">`.
 export async function resolveWatchTarget(session) {
   const baseOptions = {
     ignoreInitial: true,
@@ -2099,7 +1913,7 @@ export async function resolveWatchTarget(session) {
         scope: "directory",
         options: {
           ...baseOptions,
-          ignored: /(^|[/\\])(\.git|node_modules|dist|build|\.lavish-axi)([/\\]|$)/,
+          ignored: /(^|[/\\])(\.git|node_modules|dist|build|\.showme)([/\\]|$)/,
         },
       };
     }
@@ -2112,8 +1926,8 @@ export async function resolveWatchTarget(session) {
 export function hasLiveReloadRootOptIn(html) {
   if (typeof html !== "string") return false;
   const searchableHtml = html.replace(/<!--[\s\S]*?-->/g, "");
-  if (/<html\b[^>]*\sdata-lavish-live-reload-root(?:[\s=>/]|$)[^>]*>/i.test(searchableHtml)) return true;
-  return /<meta\b(?=[^>]*name=["']lavish-live-reload["'])(?=[^>]*content=["']root["'])[^>]*>/i.test(searchableHtml);
+  if (/<html\b[^>]*\sdata-showme-live-reload-root(?:[\s=>/]|$)[^>]*>/i.test(searchableHtml)) return true;
+  return /<meta\b(?=[^>]*name=["']showme-live-reload["'])(?=[^>]*content=["']root["'])[^>]*>/i.test(searchableHtml);
 }
 
 function setPollActive(key, activePolls, deliveredFeedback, events, active) {
@@ -2190,10 +2004,6 @@ const chromeIcons = {
     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     15,
   ),
-  globe: chromeIcon(
-    '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14.5 14.5 0 0 1 0 18a14.5 14.5 0 0 1 0-18z"/>',
-    15,
-  ),
   exit: chromeIcon(
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
     15,
@@ -2260,7 +2070,7 @@ function normalizeFlagValue(value) {
   return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
 }
 
-const LAVISH_DEFAULT_FAVICON =
+const SHOWME_DEFAULT_FAVICON =
   "<link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\u{1F48E}</text></svg>\">";
 
 function readTagAttr(tag, name) {
@@ -2281,16 +2091,16 @@ function readTagAttr(tag, name) {
   return "";
 }
 
-// Pull a tab favicon + title out of the artifact's own <head>. Lavish renders the
+// Pull a tab favicon + title out of the artifact's own <head>. Showme renders the
 // artifact in a sandboxed iframe, so the artifact's own <link rel="icon"> and
-// <title> never reach the browser tab; surfacing them here makes a wall of Lavish
-// tabs identifiable. Falls back to the Lavish default favicon. Only data: and
+// <title> never reach the browser tab; surfacing them here makes a wall of Showme
+// tabs identifiable. Falls back to the Showme default favicon. Only data: and
 // absolute (http/https/protocol-relative) icon hrefs are adopted verbatim;
 // artifact-relative hrefs would not resolve against the chrome page, so they fall
 // back to the default.
 export function extractArtifactHead(html) {
   const head = String(html || "").slice(0, 10000);
-  let faviconTag = LAVISH_DEFAULT_FAVICON;
+  let faviconTag = SHOWME_DEFAULT_FAVICON;
   const linkTags = head.match(/<link\b(?:"[^"]*"|'[^']*'|[^"'>])*>/gi) || [];
   const iconTag = linkTags.find((tag) => /(^|\s)icon(\s|$)/i.test(readTagAttr(tag, "rel")));
   const iconHref = iconTag ? readTagAttr(iconTag, "href") : "";
@@ -2318,26 +2128,26 @@ const CHROME_BOOT_FAILSAFE_PROBE_TIMEOUT_MS = 4000;
 const CHROME_BOOT_FAILSAFE_JS = `(function(){
 var t=setTimeout(fail,${CHROME_BOOT_FAILSAFE_MS});
 var o=document.getElementById("layoutGateOverlay"),h,c,a,b,gt=0,manual=false,ended=false;
-try{ended=JSON.parse(document.getElementById("lavish-session").textContent).initialEnded===true;}catch(e){}
+try{ended=JSON.parse(document.getElementById("showme-session").textContent).initialEnded===true;}catch(e){}
 function cancelGate(){if(gt)clearTimeout(gt);gt=0;}
 function reveal(){cancelGate();if(o)o.hidden=true;if(document.body)document.body.classList.remove("layout-gate-active");}
 function manualReveal(){if(ended)return false;manual=true;reveal();return true;}
 function armGate(ms,onTimeout){cancelGate();if(!ended)gt=setTimeout(function(){if(ended)return;if(onTimeout)onTimeout();else reveal();},ms);}
 function showBypass(){b=document.getElementById("layoutGateBypass");if(b){b.hidden=false;b.onclick=manualReveal;}}
-window.__lavishLayoutGateEscape={arm:armGate,cancel:cancelGate,reveal:reveal,manualReveal:manualReveal,showBypass:showBypass,end:function(){ended=true;cancelGate();},isEnded:function(){return ended;},isManuallyBypassed:function(){return manual;}};
+window.__showmeLayoutGateEscape={arm:armGate,cancel:cancelGate,reveal:reveal,manualReveal:manualReveal,showBypass:showBypass,end:function(){ended=true;cancelGate();},isEnded:function(){return ended;},isManuallyBypassed:function(){return manual;}};
 a=document.getElementById("layoutGateAction");
 if(ended){reveal();b=document.getElementById("endedOverlay");if(b)b.hidden=false;}
 if(a&&!ended)a.onclick=manualReveal;
 if(o&&!o.hidden&&!ended)armGate(${CHROME_LAYOUT_GATE_MAX_HOLD_MS});
-window.__lavishCancelChromeBootFailsafe=function(){clearTimeout(t);};
-window.__lavishChromeBootFailed=function(){clearTimeout(t);fail();};
+window.__showmeCancelChromeBootFailsafe=function(){clearTimeout(t);};
+window.__showmeChromeBootFailed=function(){clearTimeout(t);fail();};
 function fail(){
-if(window.__lavishChromeReady||ended)return;
+if(window.__showmeChromeReady||ended)return;
 h=document.getElementById("layoutGateTitle");
 c=document.getElementById("layoutGateCopy");
 a=document.getElementById("layoutGateAction");
-if(h)h.textContent="Lavish could not finish loading.";
-if(c)c.textContent="The Lavish editor script did not load. The server usually restarted while this page was opening. Check and reload to reconnect.";
+if(h)h.textContent="Showme could not finish loading.";
+if(c)c.textContent="The Showme editor script did not load. The server usually restarted while this page was opening. Check and reload to reconnect.";
 if(a){a.textContent="Check and reload";a.disabled=false;a.onclick=check;}
 showBypass();
 if(o)o.hidden=false;
@@ -2352,7 +2162,7 @@ fetch("/health",{cache:"no-store",signal:ctl.signal}).then(function(r){return r&
 clearTimeout(pt);
 if(outcome==="running"){location.reload();return;}
 if(a)a.disabled=false;
-if(c)c.textContent=outcome==="no-answer"?"Lavish did not answer the check, so this page cannot tell whether it is running. Try again in a moment.":"Lavish is still not running. Start it again with your agent, then use Check and reload.";
+if(c)c.textContent=outcome==="no-answer"?"Showme did not answer the check, so this page cannot tell whether it is running. Try again in a moment.":"Showme is still not running. Start it again with your agent, then use Check and reload.";
 });
 }
 })();`;
@@ -2361,8 +2171,8 @@ export function createChromeHtml(
   session,
   {
     layoutGateEnabled = true,
-    faviconTag = LAVISH_DEFAULT_FAVICON,
-    title = "Lavish Editor",
+    faviconTag = SHOWME_DEFAULT_FAVICON,
+    title = "Showme",
     artifactRevision = 0,
     artifactLoadToken = "",
     artifactLoadSequence = 0,
@@ -2396,7 +2206,7 @@ export function createChromeHtml(
     attachmentAcceptedMime: acceptedMime,
   });
   const { head: pathHead, tail: pathTail } = displayPathParts(session.file);
-  const bodyClass = layoutGateEnabled ? "lavish layout-gate-active" : "lavish";
+  const bodyClass = layoutGateEnabled ? "showme layout-gate-active" : "showme";
   const layoutGateHidden = layoutGateEnabled ? "" : " hidden";
   const modeHotkeyUpper = MODE_TOGGLE_HOTKEY_KEY.toUpperCase();
   const modeToggleHint = `Toggle annotate/explore mode (⌘${modeHotkeyUpper} / Ctrl+${modeHotkeyUpper})`;
@@ -2410,15 +2220,14 @@ ${faviconTag}
 <link rel="stylesheet" href="/chrome.css">
 </head>
 <body class="${bodyClass}">
-<div class="bar"><div class="brand"><span class="brand-mark">Lavish</span><span class="brand-support">Editor</span></div><div class="spacer" aria-hidden="true"></div><div class="warnings-wrap" id="warningsWrap" hidden><button class="warnings-button" id="warningsButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="warningsDrawer">${chromeIcons.warning}<span class="warnings-count" id="warningsCount">0</span></button><div class="menu warnings-drawer" id="warningsDrawer" role="dialog" aria-labelledby="warningsTitle" aria-describedby="warningsSummary" hidden><div class="warnings-head"><h2 class="warnings-title" id="warningsTitle">Layout issues</h2><p class="warnings-summary" id="warningsSummary"></p></div><div class="warnings-toolbar"><label class="warnings-selectall"><input type="checkbox" id="warningsSelectAll"><span>Select all</span></label><span class="warnings-selected" id="warningsSelected" role="status" aria-live="polite"></span></div><div class="warnings-list" id="warningsList"></div><div class="warnings-foot"><p class="warnings-note">Queueing sends a repair request with your next feedback. An issue is marked resolved only after a newer artifact load and a complete check at the same viewport no longer finds it.</p><button class="button" id="warningsQueueButton" type="button" disabled>Queue selected fixes</button></div></div></div><button class="annotate-switch" id="annotation" type="button" aria-pressed="true" title="${escapeHtml(modeToggleHint)}"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span>Annotate</span></button><div class="more-wrap" id="moreWrap"><button class="more-button" id="moreButton" type="button" title="More" aria-haspopup="menu" aria-expanded="false">${chromeIcons.more}</button><div class="menu more-menu" id="moreMenu" hidden><div class="menu-head"><div class="menu-label">Editing</div><button class="menu-file" id="copyPath" type="button" title="Copy path · ${escapeHtml(session.file)}">${chromeIcons.file}<span class="menu-file-text"><span class="path-head">${escapeHtml(pathHead)}</span><span class="path-tail">${escapeHtml(pathTail)}</span></span><span class="copy-hint" id="copyHint"><span class="icon-copy">${chromeIcons.copy}</span><span class="icon-check">${chromeIcons.check}</span><span id="copyHintText">Copy</span></span></button></div><div class="menu-rule"></div><button class="menu-item" id="reloadArtifact" type="button">${chromeIcons.refresh}<span>Reload artifact</span></button><button class="menu-item" id="copySnapshot" type="button">${chromeIcons.camera}<span>Copy DOM snapshot</span></button><button class="menu-item" id="exportArtifact" type="button">${chromeIcons.download}<span>Export standalone HTML</span></button><button class="menu-item" id="shareArtifact" type="button">${chromeIcons.globe}<span>Publish link</span></button><div class="menu-rule"></div><button class="menu-item danger" id="end" type="button">${chromeIcons.exit}<span>End session</span></button></div></div></div>
-<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe></div><div class="panel-scrim" id="panelScrim"></div><aside class="panel" id="panel"><div class="panel-head" id="panelHead"><span class="panel-handle" aria-hidden="true"></span><div class="panel-head-row"><h2>Conversation</h2><span class="panel-summary" id="panelSummary" role="status" aria-live="polite"></span><button class="panel-toggle" id="panelToggle" type="button" aria-expanded="false" aria-controls="panel" aria-label="Show conversation">${chromeIcons.chevronUp}</button></div></div><div class="panel-scroll" id="panelScroll"><div class="chat" id="chatLog"></div><div class="annotation-pills" id="annotationPills"></div></div><div class="composer" id="chatComposer"><div class="presence-banner handoff-banner" id="handoffBanner" hidden><span>This review is open in another Lavish tab.</span><button class="handoff-takeover" id="handoffTakeover" type="button">Take over here</button></div><div class="presence-banner handoff-banner" id="outdatedBanner" hidden><span id="outdatedText">The Lavish server this page was connected to is no longer running. Reloading will work once it is running again.</span><span class="outdated-actions"><button class="handoff-takeover" id="outdatedReload" type="button">Check and reload</button><button class="handoff-takeover" id="outdatedDismiss" type="button">Dismiss</button></span></div><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.</div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="chat-attachments" id="chatAttachments"></div><div class="chat-attachment-toolbar"><button class="chat-attach" id="chatAttach" type="button">Attach images</button><input id="chatAttachInput" type="file" accept="${escapeHtml(acceptedMime.join(","))}" multiple hidden><span class="chat-attachment-notice" id="chatAttachmentNotice" role="status"></span></div><div class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</div><div class="actions" id="sendActions"><button class="button button-danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; End</span></button><button class="button" id="send">Send to Agent</button></div></div></aside></div>
-<div class="share-overlay" id="shareDialog" role="dialog" aria-modal="true" aria-labelledby="shareTitleText" hidden><form class="share-card" id="shareForm"><div class="share-head"><div><div class="share-kicker">Publish to <a class="share-link" href="https://ht-ml.app" target="_blank" rel="noopener noreferrer">ht-ml.app</a></div><h2 id="shareTitleText">Publish artifact</h2></div><button class="share-close" id="shareClose" type="button" aria-label="Close publish dialog"><svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div><p class="share-note">ht-ml.app is a separate, third-party hosting service, not part of Lavish. Publishing sends this artifact to its servers.</p><p class="share-copy">This uploads this artifact to ht-ml.app with local assets inlined. Without a password, the page is PUBLIC and anyone with the link can open it. With a password, the page is PRIVATE and viewers must supply the password to view.</p><p class="share-note">Do not publish secrets. The Lavish annotation SDK is not included.</p><div class="share-grid"><label class="share-check"><input id="shareGenerate" type="checkbox"><span>Generate a password (makes this page private)</span></label><label>Password (optional)<input id="sharePassword" name="password" type="password" autocomplete="new-password" placeholder="Leave blank for a public page"></label></div><div class="share-status" id="shareStatus" role="status"></div><div class="share-result" id="shareResult" hidden><label id="shareUrlResult">Share URL<div class="share-copy-row"><input id="shareUrl" readonly><button class="share-copy-btn" id="copyShareUrl" type="button">Copy URL</button></div></label><label id="sharePasswordResult" hidden>Password (shared secret)<div class="share-copy-row"><input id="sharePasswordOut" readonly><button class="share-copy-btn" id="copySharePassword" type="button">Copy password</button></div></label><label id="shareSiteIdResult" hidden>Site ID<div class="share-copy-row"><input id="shareSiteId" readonly><button class="share-copy-btn" id="copyShareSiteId" type="button">Copy site ID</button></div></label><label id="shareUpdateKeyResult">Update key (secret)<div class="share-copy-row"><input id="shareUpdateKey" readonly><button class="share-copy-btn" id="copyUpdateKey" type="button">Copy key</button></div></label><p class="share-note" id="shareUpdateKeyNote">Keep the update key private. ht-ml.app returns it once and it is the only way to update this page later; the service has no delete. Republish this page&#39;s HTML with <code>lavish-axi share &lt;file&gt; --site &lt;site id&gt; --update-key &lt;key&gt;</code>, and add <code>--private</code> to also lock it behind a new generated password.</p></div><div class="share-actions"><button class="share-cancel" id="shareCancel" type="button">Cancel</button><button class="button" id="sharePublish" type="submit">Publish</button></div></form></div>
-<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Lavish is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button><button class="button ended-action layout-gate-bypass" id="layoutGateBypass" type="button" hidden>Show anyway</button></div></div>
+<div class="bar"><div class="brand"><span class="brand-mark">Showme</span><span class="brand-support">Editor</span></div><div class="spacer" aria-hidden="true"></div><div class="warnings-wrap" id="warningsWrap" hidden><button class="warnings-button" id="warningsButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="warningsDrawer">${chromeIcons.warning}<span class="warnings-count" id="warningsCount">0</span></button><div class="menu warnings-drawer" id="warningsDrawer" role="dialog" aria-labelledby="warningsTitle" aria-describedby="warningsSummary" hidden><div class="warnings-head"><h2 class="warnings-title" id="warningsTitle">Layout issues</h2><p class="warnings-summary" id="warningsSummary"></p></div><div class="warnings-toolbar"><label class="warnings-selectall"><input type="checkbox" id="warningsSelectAll"><span>Select all</span></label><span class="warnings-selected" id="warningsSelected" role="status" aria-live="polite"></span></div><div class="warnings-list" id="warningsList"></div><div class="warnings-foot"><p class="warnings-note">Queueing sends a repair request with your next feedback. An issue is marked resolved only after a newer artifact load and a complete check at the same viewport no longer finds it.</p><button class="button" id="warningsQueueButton" type="button" disabled>Queue selected fixes</button></div></div></div><button class="annotate-switch" id="annotation" type="button" aria-pressed="true" title="${escapeHtml(modeToggleHint)}"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span>Annotate</span></button><div class="more-wrap" id="moreWrap"><button class="more-button" id="moreButton" type="button" title="More" aria-haspopup="menu" aria-expanded="false">${chromeIcons.more}</button><div class="menu more-menu" id="moreMenu" hidden><div class="menu-head"><div class="menu-label">Editing</div><button class="menu-file" id="copyPath" type="button" title="Copy path · ${escapeHtml(session.file)}">${chromeIcons.file}<span class="menu-file-text"><span class="path-head">${escapeHtml(pathHead)}</span><span class="path-tail">${escapeHtml(pathTail)}</span></span><span class="copy-hint" id="copyHint"><span class="icon-copy">${chromeIcons.copy}</span><span class="icon-check">${chromeIcons.check}</span><span id="copyHintText">Copy</span></span></button></div><div class="menu-rule"></div><button class="menu-item" id="reloadArtifact" type="button">${chromeIcons.refresh}<span>Reload artifact</span></button><button class="menu-item" id="copySnapshot" type="button">${chromeIcons.camera}<span>Copy DOM snapshot</span></button><button class="menu-item" id="exportArtifact" type="button">${chromeIcons.download}<span>Export standalone HTML</span></button><div class="menu-rule"></div><button class="menu-item danger" id="end" type="button">${chromeIcons.exit}<span>End session</span></button></div></div></div>
+<div class="layout"><div class="frame"><iframe id="artifact" sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" data-artifact-src="/artifact/${session.key}/index.html"></iframe></div><div class="panel-scrim" id="panelScrim"></div><aside class="panel" id="panel"><div class="panel-head" id="panelHead"><span class="panel-handle" aria-hidden="true"></span><div class="panel-head-row"><h2>Conversation</h2><span class="panel-summary" id="panelSummary" role="status" aria-live="polite"></span><button class="panel-toggle" id="panelToggle" type="button" aria-expanded="false" aria-controls="panel" aria-label="Show conversation">${chromeIcons.chevronUp}</button></div></div><div class="panel-scroll" id="panelScroll"><div class="chat" id="chatLog"></div><div class="annotation-pills" id="annotationPills"></div></div><div class="composer" id="chatComposer"><div class="presence-banner handoff-banner" id="handoffBanner" hidden><span>This review is open in another Showme tab.</span><button class="handoff-takeover" id="handoffTakeover" type="button">Take over here</button></div><div class="presence-banner handoff-banner" id="outdatedBanner" hidden><span id="outdatedText">The Showme server this page was connected to is no longer running. Reloading will work once it is running again.</span><span class="outdated-actions"><button class="handoff-takeover" id="outdatedReload" type="button">Check and reload</button><button class="handoff-takeover" id="outdatedDismiss" type="button">Dismiss</button></span></div><div class="presence-banner" id="presenceBanner" hidden>Your agent is not listening. If this persists, ask your agent to poll for updates from Showme.</div><textarea id="chatInput" placeholder="Write a message for the agent..."></textarea><div class="chat-attachments" id="chatAttachments"></div><div class="chat-attachment-toolbar"><button class="chat-attach" id="chatAttach" type="button">Attach images</button><input id="chatAttachInput" type="file" accept="${escapeHtml(acceptedMime.join(","))}" multiple hidden><span class="chat-attachment-notice" id="chatAttachmentNotice" role="status"></span></div><div class="send-hint" id="sendHint" hidden>Write a message or annotate an element first.</div><div class="actions" id="sendActions"><button class="button button-danger" id="sendAndEnd" type="button">${chromeIcons.exit}<span>Send &amp; End</span></button><button class="button" id="send">Send to Agent</button></div></div></aside></div>
+<div class="ended-overlay layout-gate-overlay" id="layoutGateOverlay"${layoutGateHidden}><div class="ended-card"><div class="ended-title" id="layoutGateTitle">Checking layout.<br>One moment.</div><p class="ended-copy" id="layoutGateCopy">Showme is waiting for fonts and final geometry before revealing this artifact.</p><button class="button ended-action" id="layoutGateAction" type="button">Show anyway</button><button class="button ended-action layout-gate-bypass" id="layoutGateBypass" type="button" hidden>Show anyway</button></div></div>
 <div class="ended-overlay" id="endedOverlay" hidden><div class="ended-card"><div class="ended-title">Session ended.<br>Return to your agent to continue.</div><p class="ended-copy">${escapeHtml(session.file)}</p></div></div>
 <div class="whiteboard-overlay" id="whiteboardOverlay" hidden><div class="whiteboard-shell"><div class="whiteboard-error" id="whiteboardError" hidden></div><button class="whiteboard-close" id="whiteboardClose" type="button" aria-label="Close whiteboard"><svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button><iframe id="whiteboardFrame" title="Excalidraw whiteboard" sandbox="allow-scripts allow-popups"></iframe></div></div>
-<script id="lavish-session" type="application/json">${sessionJson}</script>
+<script id="showme-session" type="application/json">${sessionJson}</script>
 <script>${CHROME_BOOT_FAILSAFE_JS}</script>
-<script src="/chrome-client.js" onerror="window.__lavishChromeBootFailed()"></script>
+<script src="/chrome-client.js" onerror="window.__showmeChromeBootFailed()"></script>
 </body>
 </html>`;
 }
@@ -2429,11 +2238,11 @@ export function createWhiteboardFrameHtml(channelToken = "") {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lavish Whiteboard</title>
+<title>Showme Whiteboard</title>
 <link rel="stylesheet" href="/whiteboard-assets/whiteboard.css">
 </head>
 <body>
-<script>window.__lavishWhiteboardChannelToken=${JSON.stringify(channelToken)};</script>
+<script>window.__showmeWhiteboardChannelToken=${JSON.stringify(channelToken)};</script>
 <script src="/whiteboard-assets/whiteboard.js"></script>
 </body>
 </html>`;
@@ -2490,7 +2299,7 @@ export function createSdkJs(
 const key=${JSON.stringify(key)};
 const artifactRevision=${revision};
 const artifactLoadToken=${JSON.stringify(loadToken)};
-const deriveQueueKey=${deriveLavishQueueKey.toString()};
+const deriveQueueKey=${deriveShowmeQueueKey.toString()};
 const isNativeInteractiveControl=${isNativeInteractiveControl.toString()};
 const MODE_TOGGLE_HOTKEY_KEY=${JSON.stringify(MODE_TOGGLE_HOTKEY_KEY)};
 const isModeToggleHotkeyEvent=${isModeToggleHotkeyEvent.toString()};

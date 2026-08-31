@@ -9,14 +9,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 // The regression boundary for the attachment upload token break: the SDK once
-// sent lavish:uploadAttachment via a raw parent.postMessage with no
+// sent showme:uploadAttachment via a raw parent.postMessage with no
 // artifact_load_token, and the chrome drops EVERY artifact message whose token
 // is not the current load's. Every mocked harness stayed green (one even
 // patched the token in silently) while real uploads were discarded. This suite
 // runs the whole production path in a real browser - real SDK in the sandboxed
 // artifact iframe, real chrome gate, real server - and requires an actual
 // image to land in the attachment store and ride a prompt back to the agent.
-const runBrowserE2e = process.env.LAVISH_AXI_BROWSER_E2E === "1";
+const runBrowserE2e = process.env.SHOWME_BROWSER_E2E === "1";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // A 2x1 PNG (the same bytes the server attachment tests use).
@@ -63,7 +63,7 @@ const ARTIFACT_HTML = `<!doctype html>
 (function () {
   var PNG_B64 = "${PNG_B64}";
   function shadow() {
-    var host = document.querySelector(".lavish-annotation-root");
+    var host = document.querySelector(".showme-annotation-root");
     return host ? host.shadowRoot : null;
   }
   function sleep(ms) {
@@ -80,7 +80,7 @@ const ARTIFACT_HTML = `<!doctype html>
       for (var i = 0; i < 100 && !card; i += 1) {
         await sleep(100);
         var root = shadow();
-        card = root ? root.querySelector(".lavish-annotation-card") : null;
+        card = root ? root.querySelector(".showme-annotation-card") : null;
       }
       if (!card) throw new Error("annotation card never opened");
       mark("card-open");
@@ -94,15 +94,15 @@ const ARTIFACT_HTML = `<!doctype html>
       mark("pasted");
       for (var k = 0; k < 150; k += 1) {
         await sleep(100);
-        var chip = card.querySelector(".lavish-attachment-chip");
-        var error = chip ? chip.querySelector(".lavish-attachment-status-error") : null;
+        var chip = card.querySelector(".showme-attachment-chip");
+        var error = chip ? chip.querySelector(".showme-attachment-status-error") : null;
         if (error) throw new Error("upload errored: " + error.textContent);
         // A ready chip renders no status line at all; "Uploading…" means the
         // chrome never answered (the token-gate drop this suite guards).
-        if (chip && !chip.querySelector(".lavish-attachment-status")) {
+        if (chip && !chip.querySelector(".showme-attachment-status")) {
           mark("ready");
           textarea.value = "e2e: attachment round trip";
-          card.querySelector(".lavish-send").click();
+          card.querySelector(".showme-send").click();
           mark("queued");
           return;
         }
@@ -124,19 +124,19 @@ test(
   "annotation and Conversation image uploads round-trip through the real browser chrome",
   { skip: !runBrowserE2e, timeout: 300_000 },
   async () => {
-    const temp = await mkdtemp(path.join(tmpdir(), "lavish-attach-e2e-"));
+    const temp = await mkdtemp(path.join(tmpdir(), "showme-attach-e2e-"));
     const port = await freePort();
     const stateDir = path.join(temp, "state");
-    const lavishEnv = {
-      LAVISH_AXI_PORT: String(port),
-      LAVISH_AXI_STATE_DIR: stateDir,
-      LAVISH_AXI_NO_OPEN: "1",
-      LAVISH_AXI_TELEMETRY: "0",
-      LAVISH_AXI_HOST: "127.0.0.1",
-      LAVISH_AXI_LINK_HOST: "127.0.0.1",
+    const showmeEnv = {
+      SHOWME_PORT: String(port),
+      SHOWME_STATE_DIR: stateDir,
+      SHOWME_NO_OPEN: "1",
+      SHOWME_TELEMETRY: "0",
+      SHOWME_HOST: "127.0.0.1",
+      SHOWME_LINK_HOST: "127.0.0.1",
     };
     const chromeEnv = {
-      CHROME_DEVTOOLS_AXI_SESSION: `lavish-attach-e2e-${process.pid}`,
+      CHROME_DEVTOOLS_AXI_SESSION: `showme-attach-e2e-${process.pid}`,
       CHROME_DEVTOOLS_AXI_USER_DATA_DIR: path.join(temp, "chrome"),
     };
 
@@ -170,7 +170,7 @@ test(
     try {
       const artifact = path.join(temp, "attach.html");
       await writeFile(artifact, ARTIFACT_HTML);
-      const output = run(process.execPath, ["bin/lavish-axi.js", artifact, "--no-open"], lavishEnv);
+      const output = run(process.execPath, ["bin/showme.js", artifact, "--no-open"], showmeEnv);
       const url = output.match(/url:\s*"([^"]+)"/)?.[1];
       assert.ok(url, output);
       const key = new URL(url).pathname.split("/").pop();
@@ -211,8 +211,8 @@ test(
       evaluate('document.getElementById("send").click()');
       const poll = run(
         process.execPath,
-        ["bin/lavish-axi.js", "poll", artifact, "--timeout-ms", "20000"],
-        lavishEnv,
+        ["bin/showme.js", "poll", artifact, "--timeout-ms", "20000"],
+        showmeEnv,
         65_000,
       );
       assert.match(poll, /status:\s*"?feedback/, poll);
@@ -248,8 +248,8 @@ test(
       evaluate('document.getElementById("send").click()');
       const conversationPoll = run(
         process.execPath,
-        ["bin/lavish-axi.js", "poll", artifact, "--timeout-ms", "20000"],
-        lavishEnv,
+        ["bin/showme.js", "poll", artifact, "--timeout-ms", "20000"],
+        showmeEnv,
         65_000,
       );
       assert.match(conversationPoll, /status:\s*"?feedback/, conversationPoll);
@@ -283,7 +283,7 @@ test(
       assert.match(colors.text, /Unsupported file type/, errorColors);
       assert.equal(colors.actual, colors.expected, `error status must render in --danger:\n${errorColors}`);
     } finally {
-      run(process.execPath, ["bin/lavish-axi.js", "stop", "--port", String(port)], lavishEnv, 15_000);
+      run(process.execPath, ["bin/showme.js", "stop", "--port", String(port)], showmeEnv, 15_000);
       run("chrome-devtools-axi", ["stop"], chromeEnv);
       await rm(temp, { recursive: true, force: true });
     }

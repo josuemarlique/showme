@@ -1,13 +1,12 @@
 node_modules/
-dist/
+# dist/ IS committed on purpose: the Claude Code plugin is installed by a plain
+# git clone, which runs no build and no install. See CONTRIBUTING.md.
 coverage/
-.lavish/
-.lavish-axi/
+.showme/
 # Agent runtime state. `.omc/skills/**` is the one committable exception.
 /.omc/*
 !/.omc/skills/
 .DS_Store
 *.log
 package-lock.json
-.no-mistakes/evidence/
 /.planning/

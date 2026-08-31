@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "showme-local",
+  "metadata": {
+    "description": "Local marketplace holding the showme plugin, installed straight from this checkout."
+  },
+  "owner": {
+    "name": "Local"
+  },
+  "plugins": [
+    {
+      "name": "showme",
+      "description": "Open agent-generated HTML in a local browser to review it: point at elements, annotate text, and send feedback back to the agent instead of reading a wall of text.",
+      "version": "0.1.63",
+      "source": ".",
+      "category": "productivity",
+      "tags": ["html", "review", "artifacts", "visualization"]
+    }
+  ]
+}

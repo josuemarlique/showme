@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-process.env.LAVISH_AXI_HOST = "127.0.0.1";
-process.env.LAVISH_AXI_LINK_HOST = "127.0.0.1";
+process.env.SHOWME_HOST = "127.0.0.1";
+process.env.SHOWME_LINK_HOST = "127.0.0.1";
 
 import {
   createWhiteboardChannelToken,
@@ -28,7 +28,7 @@ const PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 async function startWhiteboardServer() {
-  const dir = await mkdtemp(path.join(tmpdir(), "lavish-wb-server-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "showme-wb-server-"));
   const assetsDir = path.join(dir, "whiteboard-assets");
   await mkdir(path.join(assetsDir, "fonts", "Excalifont"), { recursive: true });
   await writeFile(path.join(assetsDir, "whiteboard.js"), "// fake bundle\n");
@@ -74,7 +74,7 @@ test("createWhiteboardFrameHtml loads only whiteboard-assets resources", () => {
   const html = createWhiteboardFrameHtml("channel-token");
   assert.match(html, /<link rel="stylesheet" href="\/whiteboard-assets\/whiteboard\.css">/);
   assert.match(html, /<script src="\/whiteboard-assets\/whiteboard\.js"><\/script>/);
-  assert.match(html, /__lavishWhiteboardChannelToken="channel-token"/);
+  assert.match(html, /__showmeWhiteboardChannelToken="channel-token"/);
   assert.doesNotMatch(html, /https?:\/\//);
 });
 
@@ -90,7 +90,7 @@ test("whiteboard confirms sanitized links inside the frame", async () => {
   assert.match(frame, /event\.key !== "Tab"/);
   assert.match(frame, /window\.open\(safe, "_blank", "noopener,noreferrer"\)/);
   assert.match(css, /\.wb-link-confirm/);
-  assert.match(css, /data-lavish-whiteboard-theme="dark"/);
+  assert.match(css, /data-showme-whiteboard-theme="dark"/);
 });
 
 test("whiteboard channel tokens are signed, session bound, and short lived", () => {
@@ -181,7 +181,7 @@ test("whiteboard write routes reject cross-origin and unknown sessions", async (
 
 async function frameChannelToken(base, query = "") {
   const frame = await fetch(`${base}/whiteboard-frame${query}`).then((res) => res.text());
-  return /__lavishWhiteboardChannelToken="([^"]+)"/.exec(frame)?.[1] || "";
+  return /__showmeWhiteboardChannelToken="([^"]+)"/.exec(frame)?.[1] || "";
 }
 
 test("whiteboard channel authentication accepts only the frame-issued token", async () => {

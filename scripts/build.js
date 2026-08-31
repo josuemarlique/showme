@@ -6,18 +6,22 @@ const packageJson = JSON.parse(await readFile(new URL("../package.json", import.
 
 await mkdir("dist", { recursive: true });
 
+// Dependencies are bundled IN, not left external. `dist/` is committed and installed by a
+// plain git clone (as a Claude Code plugin), where no `node_modules` exists and no install
+// step ever runs, so anything left external is simply missing at runtime. The CJS deps need
+// a `require` shim because the output is ESM.
 await esbuild.build({
-  entryPoints: ["bin/lavish-axi.js"],
+  entryPoints: ["bin/showme.js"],
   outfile: "dist/cli.mjs",
   bundle: true,
-  packages: "external",
   platform: "node",
   format: "esm",
   target: "node22",
+  banner: {
+    js: "import { createRequire as __showmeCreateRequire } from 'node:module';\nconst require = __showmeCreateRequire(import.meta.url);",
+  },
   define: {
-    "process.env.LAVISH_AXI_BUILD_UMAMI_HOST": JSON.stringify(process.env.LAVISH_AXI_UMAMI_HOST || ""),
-    "process.env.LAVISH_AXI_BUILD_UMAMI_WEBSITE_ID": JSON.stringify(process.env.LAVISH_AXI_UMAMI_WEBSITE_ID || ""),
-    "process.env.LAVISH_AXI_BUILD_VERSION": JSON.stringify(packageJson.version),
+    "process.env.SHOWME_BUILD_VERSION": JSON.stringify(packageJson.version),
   },
 });
 

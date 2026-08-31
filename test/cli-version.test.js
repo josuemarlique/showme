@@ -12,16 +12,17 @@ import { promisify } from "node:util";
 import { isVersionOnlyArgv, VERSION } from "../src/cli.js";
 
 const execFileAsync = promisify(execFile);
-const BIN = fileURLToPath(new URL("../bin/lavish-axi.js", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/showme.js", import.meta.url));
 
-// A regression to the pre-fast-path behavior costs the full telemetry drain (up to
-// 1000ms) plus process startup. Windows process startup is substantially slower on
-// hosted runners, so give it more headroom while staying below the drain timeout.
+// Windows process startup is substantially slower on hosted runners, so give it
+// more headroom.
 const VERSION_BUDGET_MS = process.platform === "win32" ? 750 : 500;
 
-// Accepts the telemetry connection and never answers, so a regression pays the whole
-// drain timeout instead of a fast connection refusal.
-async function startBlackHoleTelemetry() {
+// A listener that accepts a connection and never answers. Any analytics client
+// that ever comes back would have to reach something, so pointing every removed
+// telemetry env var at this server proves nothing is sent rather than merely
+// proving no code named "telemetry" exists.
+async function startBlackHoleListener() {
   const sockets = new Set();
   const requests = [];
   const server = createServer((req) => {
@@ -55,22 +56,14 @@ test("isVersionOnlyArgv matches exactly the SDK's version-flag shapes", () => {
   }
 });
 
-test("--version prints the version fast and skips telemetry and state-dir init", async (t) => {
-  const telemetry = await startBlackHoleTelemetry();
-  const stateParent = await mkdtemp(path.join(tmpdir(), "lavish-version-"));
+test("--version prints the version fast and skips state-dir init", async (t) => {
+  const stateParent = await mkdtemp(path.join(tmpdir(), "showme-version-"));
   const stateDir = path.join(stateParent, "state");
   t.after(async () => {
-    await telemetry.close();
     await rm(stateParent, { recursive: true, force: true });
   });
 
-  const env = {
-    ...process.env,
-    LAVISH_AXI_STATE_DIR: stateDir,
-    LAVISH_AXI_TELEMETRY: "1",
-    LAVISH_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
-    LAVISH_AXI_UMAMI_HOST: telemetry.host,
-  };
+  const env = { ...process.env, SHOWME_STATE_DIR: stateDir };
 
   for (const flag of ["--version", "-v", "-V"]) {
     const startedAt = process.hrtime.bigint();
@@ -84,31 +77,47 @@ test("--version prints the version fast and skips telemetry and state-dir init",
     );
   }
 
-  // The heavy init is provably skipped: no telemetry request was ever sent, and the
-  // state directory was never created.
-  assert.deepEqual(telemetry.requests, []);
   assert.equal(existsSync(stateDir), false);
 });
 
-test("a non-version invocation still runs the telemetry init the fast path skips", async (t) => {
-  const telemetry = await startBlackHoleTelemetry();
-  const stateParent = await mkdtemp(path.join(tmpdir(), "lavish-version-control-"));
+test("a non-version invocation still runs the state-dir init the fast path skips", async (t) => {
+  const stateParent = await mkdtemp(path.join(tmpdir(), "showme-version-control-"));
   const stateDir = path.join(stateParent, "state");
   t.after(async () => {
-    await telemetry.close();
     await rm(stateParent, { recursive: true, force: true });
   });
 
   await execFileAsync(process.execPath, [BIN, "design"], {
-    env: {
-      ...process.env,
-      LAVISH_AXI_STATE_DIR: stateDir,
-      LAVISH_AXI_TELEMETRY: "1",
-      LAVISH_AXI_UMAMI_WEBSITE_ID: "version-fast-path-test",
-      LAVISH_AXI_UMAMI_HOST: telemetry.host,
-    },
+    env: { ...process.env, SHOWME_STATE_DIR: stateDir },
   });
 
-  assert.ok(telemetry.requests.length > 0, "expected the control command to send telemetry");
   assert.equal(existsSync(stateDir), true);
+});
+
+test("no command phones home, even with the removed analytics env vars set", async (t) => {
+  const listener = await startBlackHoleListener();
+  const stateParent = await mkdtemp(path.join(tmpdir(), "showme-no-telemetry-"));
+  const stateDir = path.join(stateParent, "state");
+  t.after(async () => {
+    await listener.close();
+    await rm(stateParent, { recursive: true, force: true });
+  });
+
+  const env = {
+    ...process.env,
+    SHOWME_STATE_DIR: stateDir,
+    // Every env var the deleted Umami client used to read. Setting them must do
+    // nothing at all now.
+    SHOWME_TELEMETRY: "1",
+    SHOWME_UMAMI_WEBSITE_ID: "should-be-ignored",
+    SHOWME_UMAMI_HOST: listener.host,
+    SHOWME_BUILD_UMAMI_WEBSITE_ID: "should-be-ignored",
+    SHOWME_BUILD_UMAMI_HOST: listener.host,
+  };
+
+  for (const argv of [["design"], ["playbook"], ["--version"]]) {
+    await execFileAsync(process.execPath, [BIN, ...argv], { env });
+  }
+
+  assert.deepEqual(listener.requests, [], "expected no outbound analytics request from any command");
 });

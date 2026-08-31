@@ -5,14 +5,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    # release-please opens its release PR with GITHUB_TOKEN, which creates a
-    # pull_request run that can only sit in action_required. Its output set is
-    # exactly these files, so excluding them means no run is ever created.
-    paths-ignore:
-      - .release-please-manifest.json
-      - CHANGELOG.md
-      - package.json
-      - plugin.json
 
 jobs:
   build-and-test:
@@ -34,3 +26,15 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run build
+
+      # dist/ is committed because the plugin installs by a plain git clone. If a source change
+      # lands without a matching rebuild, every machine that installs from this repo silently
+      # runs the old code, so a stale dist/ is a build failure rather than a warning.
+      - name: dist/ must match the source it was built from
+        run: |
+          if ! git diff --quiet -- dist; then
+            echo "::error::dist/ is stale. Run 'pnpm run build' and commit the result."
+            git diff --stat -- dist
+            exit 1
+          fi
+          echo "dist/ is up to date."

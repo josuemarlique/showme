@@ -13,11 +13,11 @@ import {
   validateSkillMarkdown,
 } from "../src/skill.js";
 
-test("createSkillMarkdown emits valid frontmatter naming the lavish skill", () => {
+test("createSkillMarkdown emits valid frontmatter naming the showme skill", () => {
   const { frontmatter, errors } = parseSkillFrontmatter(createSkillMarkdown());
 
   assert.deepEqual(errors, [], "frontmatter parses as plain block-style YAML");
-  assert.equal(frontmatter.name, "lavish");
+  assert.equal(frontmatter.name, "showme");
   assert.equal(frontmatter.description, SKILL_DESCRIPTION);
 });
 
@@ -25,7 +25,7 @@ test("createSkillMarkdown emits Hermes Agent metadata as string-valued frontmatt
   const { frontmatter } = parseSkillFrontmatter(createSkillMarkdown());
 
   assert.deepEqual(frontmatter.metadata, {
-    author: "Kun Chen (kunchenguid)",
+    author: "Local fork of lavish-axi by Kun Chen (MIT)",
     "argument-hint": "<what the artifact should show>",
     "hermes-tags": "html, review, artifacts, visualization",
     "hermes-category": "productivity",
@@ -36,7 +36,7 @@ test("createSkillMarkdown emits Hermes Agent metadata as string-valued frontmatt
 test("createSkillMarkdown conforms to the Agent Skills frontmatter contract", () => {
   // Agent Plugins delegates skill validity to Agent Skills and silently skips any skill
   // that fails it, so a regression here would quietly remove the skill from the plugin.
-  const { valid, errors } = validateSkillMarkdown(createSkillMarkdown(), { directoryName: "lavish" });
+  const { valid, errors } = validateSkillMarkdown(createSkillMarkdown(), { directoryName: "showme" });
 
   assert.deepEqual(errors, []);
   assert.ok(valid);
@@ -51,26 +51,26 @@ test("createSkillMarkdown keeps every frontmatter field in the allowed set", () 
 });
 
 test("validateSkillMarkdown rejects the shapes the reference validator rejects", () => {
-  const flowCollection = "---\nname: lavish\ndescription: d\nmetadata:\n  tags: [a, b]\n---\nbody";
+  const flowCollection = "---\nname: showme\ndescription: d\nmetadata:\n  tags: [a, b]\n---\nbody";
   assert.match(validateSkillMarkdown(flowCollection).errors.join("\n"), /flow collection/);
 
-  const unknownField = "---\nname: lavish\ndescription: d\nargument-hint: x\n---\nbody";
+  const unknownField = "---\nname: showme\ndescription: d\nargument-hint: x\n---\nbody";
   assert.match(validateSkillMarkdown(unknownField).errors.join("\n"), /unexpected frontmatter field `argument-hint`/);
 
-  const nested = "---\nname: lavish\ndescription: d\nmetadata:\n  hermes:\n    category: p\n---\nbody";
+  const nested = "---\nname: showme\ndescription: d\nmetadata:\n  hermes:\n    category: p\n---\nbody";
   assert.match(validateSkillMarkdown(nested).errors.join("\n"), /nests deeper than one level/);
 
-  const mismatched = "---\nname: lavish\ndescription: d\n---\nbody";
+  const mismatched = "---\nname: showme\ndescription: d\n---\nbody";
   assert.match(
     validateSkillMarkdown(mismatched, { directoryName: "other" }).errors.join("\n"),
     /must match skill name/,
   );
 
-  const missing = "---\nname: lavish\n---\nbody";
+  const missing = "---\nname: showme\n---\nbody";
   assert.match(validateSkillMarkdown(missing).errors.join("\n"), /`description` is required/);
 });
 
-test("createSkillMarkdown handles explicit /lavish invocation arguments", () => {
+test("createSkillMarkdown handles explicit /showme invocation arguments", () => {
   const md = createSkillMarkdown();
   const body = md.slice(md.indexOf("\n---\n", 4) + 5);
 
@@ -82,16 +82,16 @@ test("createSkillMarkdown stays a short stub that defers to the CLI", () => {
   const md = createSkillMarkdown();
 
   assert.ok(md.length <= MAX_SKILL_MARKDOWN_CHARS, "the generated skill stays drastically smaller than CLI guidance");
-  assert.match(md, /Lavish Editor/);
-  assert.match(md, /`npx -y lavish-axi --help`/);
-  assert.match(md, /`npx -y lavish-axi design`/);
-  assert.match(md, /`npx -y lavish-axi playbook <id>`/);
+  assert.match(md, /Showme/);
+  assert.match(md, /`showme --help`/);
+  assert.match(md, /`showme design`/);
+  assert.match(md, /`showme playbook <id>`/);
   assert.match(md, /stale/i);
 });
 
 test("createSkillMarkdown does not bake CLI-owned guidance into the skill", () => {
   const md = createSkillMarkdown();
-  const home = createHomeOutput({ bin: "lavish-axi", sessions: [], includeSessions: false, agent: "static" });
+  const home = createHomeOutput({ bin: "showme", sessions: [], includeSessions: false, agent: "static" });
 
   for (const item of home.visual_guidance) {
     assert.ok(!md.includes(item), `must not copy visual guidance: ${item.slice(0, 48)}...`);
@@ -128,12 +128,24 @@ test("createSkillMarkdown omits setup guidance", () => {
   assert.doesNotMatch(md, /setup plugin/);
 });
 
-test("createSkillMarkdown uses non-interactive npx commands", () => {
+test("createSkillMarkdown steers the agent away from npx", () => {
+  // This fork is never published, and `showme` on npm is an unrelated package, so a skill that
+  // told the agent to run `npx -y showme` would have it download and execute somebody else's
+  // code. The only npx mention allowed is the warning against it.
   const md = createSkillMarkdown();
 
-  assert.match(md, /`npx -y lavish-axi <html-file>`/);
-  assert.match(md, /If lavish-axi output shows a follow-up command starting with `lavish-axi`/);
-  assert.match(md, /run it as `npx -y lavish-axi/);
-  assert.doesNotMatch(md, /`npx lavish-axi/);
-  assert.doesNotMatch(md, /Run `lavish-axi/);
+  assert.match(md, /NEVER run `npx showme` or `npx -y showme`/);
+  assert.match(md, /installed locally, never from npm/);
+  // The fallback has to be self-locating: on another machine the plugin lives in Claude Code's
+  // cache under a path nobody can hardcode, and Claude Code tells the skill its own base
+  // directory when it loads. Anything else leaves a cloned plugin unable to find its own CLI.
+  assert.match(md, /skill base directory/, "the fallback must resolve from the skill's own location");
+  assert.match(md, /\/\.\.\/\.\.\/dist\/cli\.mjs/, "the fallback must name the bundled CLI path");
+
+  const prescriptions = [...md.matchAll(/`npx[^`]*`/g)].map((match) => match[0]);
+  assert.deepEqual(
+    prescriptions,
+    ["`npx showme`", "`npx -y showme`"],
+    "npx may appear only inside the warning, never as an instruction",
+  );
 });
