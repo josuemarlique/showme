@@ -31,6 +31,8 @@ jobs:
       # lands without a matching rebuild, every machine that installs from this repo silently
       # runs the old code, so a stale dist/ is a build failure rather than a warning.
       - name: dist/ must match the source it was built from
+        # Explicit shell: the Windows runner defaults to PowerShell, which cannot parse this.
+        shell: bash
         run: |
           if ! git diff --quiet -- dist; then
             echo "::error::dist/ is stale. Run 'pnpm run build' and commit the result."
