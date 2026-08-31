@@ -99,9 +99,12 @@ That name belongs to somebody else's package.
 This is the easy path, and it needs no build and no package manager.
 
 ```
-/plugin marketplace add josuemarlique/handoff
+/plugin marketplace add josuemarlique/claude-plugins
 /plugin install showme@jmarlique-tools
 ```
+
+`josuemarlique/claude-plugins` is the marketplace that lists the plugins.
+`jmarlique-tools` is the marketplace's own name, which is why it appears after the `@`.
 
 That is it.
 `dist/` is committed to this repo with every dependency bundled into it, so the plugin works the moment Claude Code clones it.
