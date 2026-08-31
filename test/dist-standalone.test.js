@@ -23,11 +23,21 @@ const DIST = fileURLToPath(new URL("../dist", import.meta.url));
 // So this suite runs the BUILT artifact, copied away from the repo, with no dependencies present.
 const built = existsSync(path.join(DIST, "cli.mjs"));
 
-async function stagedClone(t) {
-  // Copy dist/ somewhere with no node_modules above it, the way a cloned plugin sits.
+const REPO = fileURLToPath(new URL("..", import.meta.url));
+
+// A git clone ships bin/ and src/ TOO, not just dist/. That difference is the whole point:
+// `resolveServerEntry` used to prefer `bin/showme.js` whenever it existed, which is fine for an
+// npm tarball (where it does not) and fatal for a clone (where it does, and needs node_modules
+// that a clone has not got). Copy the same shape a clone has, minus the dependencies.
+async function stagedClone(t, { withSource = false } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "showme-standalone-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(DIST, path.join(root, "dist"), { recursive: true });
+  if (withSource) {
+    await cp(path.join(REPO, "bin"), path.join(root, "bin"), { recursive: true });
+    await cp(path.join(REPO, "src"), path.join(root, "src"), { recursive: true });
+    await cp(path.join(REPO, "package.json"), path.join(root, "package.json"));
+  }
   return root;
 }
 
@@ -125,5 +135,40 @@ test(
       [],
       `dist/cli.mjs still expects packages that a cloned plugin will not have: ${unresolvable.join(", ")}`,
     );
+  },
+);
+
+test(
+  "the built CLI starts its detached server from a clone that also carries bin/ and src/",
+  { skip: !built && "run `pnpm run build` first" },
+  async (t) => {
+    // The regression this guards: installing the plugin is a git clone, so bin/ and src/ are
+    // present with no node_modules. The CLI spawns a DETACHED child for the server, so a child
+    // that dies on `import express` surfaces only as "Showme server did not start" from the
+    // parent. `--version` and `export` both stay green through it, which is why they are not
+    // enough on their own.
+    const root = await stagedClone(t, { withSource: true });
+    const cli = path.join(root, "dist", "cli.mjs");
+    const artifact = path.join(root, "page.html");
+    await writeFile(artifact, "<!doctype html><html><body><h1>Clone</h1></body></html>", "utf8");
+
+    const port = 4970 + (process.pid % 20);
+    const env = {
+      ...process.env,
+      SHOWME_STATE_DIR: path.join(root, "state"),
+      SHOWME_NO_OPEN: "1",
+      SHOWME_PORT: String(port),
+    };
+
+    try {
+      const { stdout } = await execFileAsync(process.execPath, [cli, artifact], { env });
+      assert.match(stdout, /status: opened/, "the server must actually come up from a clone");
+
+      const health = await fetch(`http://127.0.0.1:${port}/health`);
+      assert.equal(health.status, 200);
+      assert.equal((await health.json()).app, "showme");
+    } finally {
+      await execFileAsync(process.execPath, [cli, "stop"], { env }).catch(() => {});
+    }
   },
 );

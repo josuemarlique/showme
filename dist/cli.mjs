@@ -46940,9 +46940,12 @@ async function startServer(port) {
   }
 }
 function resolveServerEntry() {
-  const binEntry = fileURLToPath5(new URL("../bin/showme.js", import.meta.url));
-  if (existsSync5(binEntry)) return binEntry;
-  return fileURLToPath5(import.meta.url);
+  const self = fileURLToPath5(import.meta.url);
+  if (path9.basename(path9.dirname(self)) === "src") {
+    const binEntry = fileURLToPath5(new URL("../bin/showme.js", import.meta.url));
+    if (existsSync5(binEntry)) return binEntry;
+  }
+  return self;
 }
 function createServerSpawnOptions(logFd = null) {
   const stdio = (

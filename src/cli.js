@@ -1155,14 +1155,23 @@ async function startServer(port) {
   }
 }
 
-// The detached server child must point at a node-executable entry that actually invokes
-// run(). In source layout that's `../bin/showme.js` (which calls run on import). In the
-// published bundle, only `dist/cli.mjs` ships and it self-invokes via the bundled bin
-// wrapper. Pick whichever exists.
+// The detached server child must point at a node-executable entry that actually invokes run().
+// Running from source (`src/cli.js`) that is `../bin/showme.js`, because this module only
+// exports run(). Running from the bundle (`dist/cli.mjs`) the bundle IS the entry: it embeds
+// the bin wrapper and self-invokes.
+//
+// Decide from which layout is running, never from whether `bin/showme.js` happens to exist.
+// Installing this as a Claude Code plugin is a plain git clone, so `bin/` and `src/` sit on
+// disk beside `dist/` with no `node_modules` anywhere. Preferring `bin/showme.js` there spawned
+// a child that died on its first `import express`, and the only symptom was the parent
+// reporting "Showme server did not start".
 export function resolveServerEntry() {
-  const binEntry = fileURLToPath(new URL("../bin/showme.js", import.meta.url));
-  if (existsSync(binEntry)) return binEntry;
-  return fileURLToPath(import.meta.url);
+  const self = fileURLToPath(import.meta.url);
+  if (path.basename(path.dirname(self)) === "src") {
+    const binEntry = fileURLToPath(new URL("../bin/showme.js", import.meta.url));
+    if (existsSync(binEntry)) return binEntry;
+  }
+  return self;
 }
 
 /**
