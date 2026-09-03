@@ -42,6 +42,9 @@ async function createChromeHarness({
   // chrome's sheet breakpoint, with `setMobile` flipping it the way a resize would. Left off, the
   // window has no matchMedia at all, which is the desktop the other tests run against.
   mobile = false,
+  // Simulates an operating system that prefers dark UI without making the Showme-owned chrome
+  // itself dark. This catches any surface that accidentally reads the OS preference directly.
+  darkOs = false,
 } = {}) {
   const source = await readFile(sourceUrl, "utf8");
   // Seed sessionStorage before the client boots, to model a tab whose queue was
@@ -348,11 +351,12 @@ async function createChromeHarness({
     },
   };
   const mediaQueries = [];
-  if (mobile) {
+  if (mobile || darkOs) {
     context.window.matchMedia = (query) => {
+      const isDarkPreference = /prefers-color-scheme:\s*dark/.test(query);
       const list = {
         media: query,
-        matches: true,
+        matches: isDarkPreference ? darkOs : mobile,
         changeHandlers: [],
         addEventListener(type, handler) {
           if (type === "change") this.changeHandlers.push(handler);
@@ -483,6 +487,7 @@ async function createChromeHarness({
     mediaQueries,
     setMobile(matches) {
       for (const list of mediaQueries) {
+        if (!/max-width/.test(list.media)) continue;
         list.matches = matches;
         for (const handler of list.changeHandlers) handler({ matches });
       }
@@ -4057,6 +4062,15 @@ async function initializeInlineWhiteboard(chrome, token = "inline-channel") {
   await flushPromises();
   return whiteboard;
 }
+
+test("Showme whiteboards default to light when the operating system prefers dark", async () => {
+  const chrome = await createChromeHarness({ darkOs: true, fetchImpl: async (url) => whiteboardFetch(url) });
+  const inline = await initializeInlineWhiteboard(chrome);
+
+  const init = inline.posted.at(-1);
+  assert.equal(init.type, "showme-whiteboard:init");
+  assert.equal(init.theme, "light");
+});
 
 test("artifact relays cannot invoke whiteboard persistence", async () => {
   const calls = [];

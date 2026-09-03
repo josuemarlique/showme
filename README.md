@@ -10,7 +10,7 @@ Open agent-generated HTML in a local browser, point at what needs changing, and 
 ### How this differs from lavish-axi
 
 Everything Showme does well is Kun Chen's design.
-This fork changes six things and leaves the rest alone.
+This fork changes seven things and leaves the rest alone.
 
 |                         | lavish-axi                                                                                                | Showme                                                                         |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -20,6 +20,7 @@ This fork changes six things and leaves the rest alone.
 | Reviewing on your phone | Yes, over Tailscale                                                                                       | No                                                                             |
 | `update`                | Looks the package up on the npm registry                                                                  | Refuses. That name belongs to an unrelated package                             |
 | How you install it      | npm package                                                                                               | Git clone. Nothing is published to npm                                         |
+| Default appearance      | Dark review chrome and dark artifact fallback                                                             | Light review chrome, annotation card, and artifact fallback                    |
 | Everything else         | The editor, review loop, annotations, Mermaid whiteboards, layout inbox, attachments, live reload, export | Unchanged                                                                      |
 
 Full detail is in [About this fork](#about-this-fork) below.

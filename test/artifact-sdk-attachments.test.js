@@ -117,12 +117,12 @@ test("the SDK bundle gates queuing until in-flight uploads settle (R2.4)", () =>
 });
 
 test("the count-cap notice reads as an error, not as the passive keyboard hint", () => {
-  // The cap notice replaces the card's gray hint line, so without its own error
+  // The cap notice replaces the card's neutral hint line, so without its own error
   // styling it reads as passive help text and a rejected drop goes unnoticed.
   assert.match(sdk, /showme-hint-alert/);
-  assert.match(sdk, /\.showme-hint-alert\{[^}]*color:#ff9d7a/);
+  assert.match(sdk, /\.showme-hint-alert\{[^}]*color:var\(--danger\)/);
   assert.match(sdk, /attachNotice\.classList\.add\("showme-hint-alert"\)/);
-  // Clearing the notice restores the neutral hint instead of leaving stale red text.
+  // Clearing the notice restores the neutral hint instead of leaving stale error text.
   assert.match(sdk, /attachNotice\.classList\.remove\("showme-hint-alert"\)/);
 });
 
