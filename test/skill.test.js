@@ -70,11 +70,13 @@ test("validateSkillMarkdown rejects the shapes the reference validator rejects",
   assert.match(validateSkillMarkdown(missing).errors.join("\n"), /`description` is required/);
 });
 
-test("createSkillMarkdown handles explicit /showme invocation arguments", () => {
+test("createSkillMarkdown handles explicit Claude and Codex invocation arguments", () => {
   const md = createSkillMarkdown();
   const body = md.slice(md.indexOf("\n---\n", 4) + 5);
 
-  assert.ok(body.includes("$ARGUMENTS"), "body consumes slash-command arguments");
+  assert.ok(body.includes("$ARGUMENTS"), "body consumes explicit-invocation arguments");
+  assert.match(body, /`\/showme`/, "names Claude Code's invocation form");
+  assert.match(body, /`\$showme`/, "names Codex's invocation form");
   assert.match(body, /empty/i, "explains the model-invoked case where no arguments are passed");
 });
 

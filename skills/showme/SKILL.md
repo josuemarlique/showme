@@ -37,5 +37,5 @@ into that same form.
 
 $ARGUMENTS
 
-If the request above is non-empty, the user invoked `/showme` explicitly - fetch the current CLI guidance, then build that artifact.
+If the request above is non-empty, the user invoked `/showme` in Claude Code or `$showme` in Codex - fetch the current CLI guidance, then build that artifact.
 If it is empty, infer what to visualize from the conversation.

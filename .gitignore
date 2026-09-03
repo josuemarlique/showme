@@ -1,5 +1,5 @@
 node_modules/
-# dist/ IS committed on purpose: the Claude Code plugin is installed by a plain
+# dist/ IS committed on purpose: the Claude Code and Codex plugins are installed by a plain
 # git clone, which runs no build and no install. See CONTRIBUTING.md.
 coverage/
 .showme/

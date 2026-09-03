@@ -143,7 +143,7 @@ export const PLAYBOOKS = [
   import { File, FileDiff } from "https://esm.sh/@pierre/diffs@1.2.10?bundle";
 
   const theme = { light: "github-light", dark: "github-dark" };
-  const options = { theme, themeType: "dark", overflow: "wrap" };
+  const options = { theme, themeType: "light", overflow: "wrap" };
   const oldFile = {
     name: "src/greeting.ts",
     contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Showme\\"));\\n",

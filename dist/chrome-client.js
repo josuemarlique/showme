@@ -2082,7 +2082,10 @@ const whiteboardSaveChains = new Map();
 const inlineWhiteboardChannels = new Map();
 
 function whiteboardTheme() {
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // Whiteboards are Showme-owned UI, so they follow the chrome's light default instead of the
+  // operating system. Artifact-authored Mermaid still resolves its own explicit page theme in
+  // design-reference.js and can remain dark independently.
+  return "light";
 }
 
 function postToWhiteboardOverlay(message) {

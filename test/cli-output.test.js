@@ -403,10 +403,16 @@ test("design output prints copy-pasteable CDN URLs so agents can opt in to Daisy
   assert.ok(output.reference.mockup.notes.some((item) => item.includes("line numbers")));
 });
 
-test("design output recommends luxury as the default theme and warns against @apply on DaisyUI classes", () => {
+test("design output recommends a bundled light default theme and warns against @apply on DaisyUI classes", async () => {
   const output = createDesignOutput();
+  const themesCss = await readFile(new URL("../dist/design/daisyui-themes.css", import.meta.url), "utf8");
+  const defaultThemeUsage = output.theme_usage.find((item) => /^Default to /.test(item));
+  const defaultTheme = defaultThemeUsage?.match(/data-theme="([^"]+)"/)?.[1];
+  const defaultThemeCss = themesCss.match(new RegExp(`\\[data-theme=${defaultTheme}\\]\\{([^}]*)\\}`))?.[1];
 
-  assert.ok(output.theme_usage.some((item) => /default.*luxury|luxury.*default/i.test(item)));
+  assert.equal(defaultTheme, "silk");
+  assert.ok(output.theme_usage.every((item) => !/default.*luxury|luxury.*default/i.test(item)));
+  assert.match(defaultThemeCss ?? "", /(?:^|;)color-scheme:light(?:;|$)/);
   assert.ok(output.theme_usage.some((item) => item.includes("@apply") && /daisyui/i.test(item)));
   assert.ok(output.theme_usage.some((item) => /aborts the entire|no Tailwind styles/i.test(item)));
 });
@@ -742,6 +748,7 @@ test("code playbook detail output requires verified @pierre/diffs rendering", ()
   assert.ok(output.playbook.design_rules.some((item) => item.includes("@pierre/diffs")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("https://esm.sh/@pierre/diffs@1.2.10?bundle")));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("new FileDiff")));
+  assert.ok(output.playbook.design_rules.some((item) => item.includes('themeType: "light"')));
   assert.ok(output.playbook.design_rules.some((item) => item.includes("Shiki theme")));
   assert.ok(output.playbook.pitfalls.some((item) => item.includes("<pre>")));
 });
@@ -1922,6 +1929,14 @@ test("setup rejects an unknown action and names both supported ones", async () =
     await rm(stateDir, { force: true, recursive: true });
     await rm(homeDir, { force: true, recursive: true });
   }
+});
+
+test("setup help routes Codex plugin installs through a marketplace and keeps hooks optional", () => {
+  const help = getCommandHelp("setup");
+
+  assert.match(help, /Codex installs Showme separately through a Codex plugin marketplace/);
+  assert.match(help, /session hook remains optional ambient context/);
+  assert.doesNotMatch(help, /Codex users should use `setup hooks` instead/);
 });
 
 test("server spawn options detach without inheriting invalid streams", () => {

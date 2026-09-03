@@ -787,11 +787,15 @@ test("annotation card title renders selected tag as an html element name", () =>
   assert.match(js, /"Annotate &lt;" \+ c\.tag \+ "&gt;"/);
 });
 
-test("annotation card shadow styles use Showme design-system variables", () => {
+test("annotation card shadow styles use the light Showme design-system variables", () => {
   const js = createSdkJs("abc");
 
   assert.match(js, /--ink-900:#0f1115/);
-  assert.match(js, /--accent:#f4c95d/);
+  assert.match(js, /color-scheme:light/);
+  assert.match(js, /--bg:var\(--cream-50\)/);
+  assert.match(js, /--bg-panel:#fff/);
+  assert.match(js, /--fg:var\(--ink-900\)/);
+  assert.match(js, /--accent:#8a5a00/);
   assert.match(js, /--font-sans:/);
   assert.match(js, /font-family:var\(--font-sans\)/);
   assert.match(js, /:focus-visible\{outline:2px solid var\(--accent\);outline-offset:2px/);
@@ -827,7 +831,11 @@ test("chrome declares the Showme design-system tokens", async () => {
   assert.match(css, /--text-display:92px/);
   assert.match(css, /--lh-display:1/);
   assert.match(css, /--space-32:64px/);
-  assert.match(css, /--shadow-floating:0 20px 70px rgba\(0,0,0,.35\)/);
+  assert.match(css, /--bg:var\(--cream-50\)/);
+  assert.match(css, /--bg-panel:#fff/);
+  assert.match(css, /--fg:var\(--ink-900\)/);
+  assert.match(css, /--accent:var\(--brass-700\)/);
+  assert.match(css, /--shadow-floating:0 20px 70px rgba\(15,17,21,.18\)/);
   assert.match(css, /--ease:cubic-bezier\(.2,.6,.2,1\)/);
   assert.match(css, /--dur-slow:320ms/);
   assert.match(css, /--bar-h:56px/);
@@ -841,7 +849,7 @@ test("artifact SDK uses design-token aliases for annotation highlight and shadow
   assert.match(js, /--showme-annotate-outline:2px solid var\(--showme-accent\)/);
   assert.match(js, /el\.style\.outline\s*=\s*["']var\(--showme-annotate-outline,2px solid #f4c95d\)["']/);
   assert.match(js, /el\.style\.outlineOffset\s*=\s*["']var\(--showme-annotate-offset,2px\)["']/);
-  assert.match(js, /--fg-faint:var\(--steel-300\)/);
+  assert.match(js, /--fg-faint:var\(--steel-500\)/);
   assert.match(js, /textarea::placeholder\{color:var\(--fg-faint\)\}/);
   assert.doesNotMatch(js, /placeholder\{color:#aeb6c6\}/);
 });
