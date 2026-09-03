@@ -39,6 +39,28 @@ test("published package root is a complete Agent Plugin", async () => {
   assert.ok(packageJson.files.includes("skills/showme"));
 });
 
+test("published package includes the native Codex manifest", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.ok(packageJson.files.includes(".codex-plugin/plugin.json"));
+});
+
+test("all host plugin manifests advertise the package version", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const manifestUrls = [
+    new URL("../plugin.json", import.meta.url),
+    new URL("../.claude-plugin/plugin.json", import.meta.url),
+    new URL("../.claude-plugin/marketplace.json", import.meta.url),
+    new URL("../.codex-plugin/plugin.json", import.meta.url),
+  ];
+
+  for (const manifestUrl of manifestUrls) {
+    const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
+    const advertisedVersion = manifest.plugins?.[0]?.version ?? manifest.version;
+    assert.equal(advertisedVersion, packageJson.version, `${manifestUrl.pathname} has a stale version`);
+  }
+});
+
 test("public showme skill is not marked internal", async () => {
   const skillMd = await readFile(new URL("../skills/showme/SKILL.md", import.meta.url), "utf8");
   const frontmatter = skillMd.slice(4, skillMd.indexOf("\n---\n", 4));

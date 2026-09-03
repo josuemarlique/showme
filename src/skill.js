@@ -27,7 +27,7 @@ export const ALLOWED_SKILL_FRONTMATTER_KEYS = Object.freeze([
  * This is a discovery stub, not a copy of CLI guidance. Installed skills go stale;
  * `showme --help`, `showme design`, and `showme playbook <id>` do not.
  * Keep the body to what Showme is, when to reach for it, how to invoke the local CLI,
- * slash-command request handling, and pointers at those commands.
+ * explicit-invocation request handling, and pointers at those commands.
  *
  * The frontmatter is deliberately plain: block-style YAML only (the reference
  * validator rejects `[a, b]` flow collections) and string-valued `metadata`,
@@ -75,7 +75,7 @@ into that same form.
 
 $ARGUMENTS
 
-If the request above is non-empty, the user invoked \`/showme\` explicitly - fetch the current CLI guidance, then build that artifact.
+If the request above is non-empty, the user invoked \`/showme\` in Claude Code or \`$showme\` in Codex - fetch the current CLI guidance, then build that artifact.
 If it is empty, infer what to visualize from the conversation.
 `;
 

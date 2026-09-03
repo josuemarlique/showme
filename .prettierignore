@@ -5,6 +5,7 @@ showme-code-review.html
 package-lock.json
 CHANGELOG.md
 plugin.json
+.codex-plugin/plugin.json
 .claude/settings.local.json
 # Canonical two-line @AGENTS.md pointer; prettier would add a blank line.
 CLAUDE.md

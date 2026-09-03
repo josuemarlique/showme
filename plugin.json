@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "showme",
-  "version": "0.1.63",
+  "version": "0.1.64",
   "description": "HTML is the new markdown. Showme is the new editor for your HTML artifacts.",
   "author": {
     "name": "Fork of lavish-axi by Kun Chen (MIT)",

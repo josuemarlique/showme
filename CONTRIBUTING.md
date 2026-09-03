@@ -56,11 +56,11 @@ Run them with `SHOWME_BROWSER_E2E=1 pnpm test`, which needs the `chrome-devtools
 - Do not hand-edit `skills/showme/SKILL.md`.
   It is generated from `src/skill.js` by `pnpm run build:skill`.
   Change the source, then regenerate.
-- Do not hand-edit the root `plugin.json`.
-  It is generated from `package.json` by `pnpm run build:plugin`.
+- Do not hand-edit the root `plugin.json` or `.codex-plugin/plugin.json`.
+  Both are generated from `package.json` by `pnpm run build:plugin`.
   Change the source, then regenerate.
 - Commit `dist/` whenever you change anything under `src/` or `bin/`.
-  It is checked in on purpose: installing this as a Claude Code plugin is a plain `git clone`, which never runs a build or an install, so `dist/` is the only thing that actually runs on another machine.
+  It is checked in on purpose: installing this as a Claude Code or Codex plugin is a plain `git clone`, which never runs a build or an install, so `dist/` is the only thing that actually runs on another machine.
   `pnpm run build` bundles every dependency into `dist/cli.mjs`, so it needs no `node_modules` beside it.
   `test/dist-standalone.test.js` runs the built file with no dependencies present, and CI fails if `dist/` does not match the source it was built from.
 - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` are the Claude Code plugin manifests, and they are hand-maintained.

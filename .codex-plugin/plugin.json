@@ -1,0 +1,38 @@
+{
+  "name": "showme",
+  "version": "0.1.64",
+  "description": "Open agent-generated HTML in a local browser to review it, annotate elements and text, and send feedback back to the agent.",
+  "author": {
+    "name": "Fork of lavish-axi by Kun Chen (MIT)",
+    "url": "https://github.com/kunchenguid/lavish-axi"
+  },
+  "homepage": "https://github.com/josuemarlique/showme#readme",
+  "repository": "https://github.com/josuemarlique/showme",
+  "license": "MIT",
+  "keywords": [
+    "html",
+    "review",
+    "artifacts",
+    "visualization",
+    "annotation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Showme",
+    "shortDescription": "Review and annotate agent-generated HTML",
+    "longDescription": "Open agent-generated HTML in a local browser, annotate elements or text, and send precise feedback back to the agent without leaving the review loop.",
+    "developerName": "Josue Marlique",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Show this plan as an interactive HTML artifact.",
+      "Open this HTML file for review.",
+      "Turn this comparison into a visual artifact."
+    ],
+    "websiteURL": "https://github.com/josuemarlique/showme#readme"
+  }
+}

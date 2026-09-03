@@ -20,6 +20,8 @@ import test from "node:test";
 import {
   PLUGIN_SCHEMA_URL,
   computeVsCodePluginLocationsUpdate,
+  createCodexPluginManifest,
+  createCodexPluginManifestJson,
   createPluginManifest,
   createPluginManifestJson,
   isStalePluginLocation,
@@ -110,6 +112,61 @@ test("committed plugin.json stays in sync with package.json", async () => {
   const committed = await readFile(new URL("../plugin.json", import.meta.url), "utf8");
 
   assert.equal(committed, createPluginManifestJson(packageJson), "run `npm run build:plugin` and commit the result");
+});
+
+test("generated Codex manifest exposes the shared Showme skill", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const manifest = createCodexPluginManifest(packageJson);
+
+  assert.deepEqual(Object.keys(manifest).sort(), [
+    "author",
+    "description",
+    "homepage",
+    "interface",
+    "keywords",
+    "license",
+    "name",
+    "repository",
+    "skills",
+    "version",
+  ]);
+  assert.equal(manifest.name, packageJson.name);
+  assert.equal(manifest.version, packageJson.version);
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(manifest.skills, "./skills/");
+  assert.match(manifest.homepage, /^https:\/\//);
+  assert.match(manifest.repository, /^https:\/\//);
+  assert.deepEqual(Object.keys(manifest.interface).sort(), [
+    "capabilities",
+    "category",
+    "defaultPrompt",
+    "developerName",
+    "displayName",
+    "longDescription",
+    "shortDescription",
+    "websiteURL",
+  ]);
+  assert.equal(manifest.interface.displayName, "Showme");
+  assert.equal(manifest.interface.developerName, "Josue Marlique");
+  assert.ok(manifest.interface.shortDescription.length > 0);
+  assert.ok(manifest.interface.longDescription.length > 0);
+  assert.ok(manifest.interface.capabilities.includes("Interactive"));
+  assert.ok(manifest.interface.defaultPrompt.length > 0 && manifest.interface.defaultPrompt.length <= 3);
+  assert.ok(manifest.interface.defaultPrompt.every((prompt) => prompt.length > 0 && prompt.length <= 128));
+  assert.equal(manifest.$schema, undefined, "the Agent Plugins schema field is not valid in Codex's manifest");
+  assert.equal(manifest.hooks, undefined, "Showme's optional session hook is not bundled into the plugin");
+  assert.equal(manifest.mcpServers, undefined, "the CLI remains Showme's only agent interface");
+});
+
+test("committed Codex plugin manifest stays in sync with package.json", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const committed = await readFile(new URL("../.codex-plugin/plugin.json", import.meta.url), "utf8");
+
+  assert.equal(
+    committed,
+    createCodexPluginManifestJson(packageJson),
+    "run `npm run build:plugin` and commit the result",
+  );
 });
 
 test("normalizeRepositoryUrl converts npm git URLs to plain https", () => {

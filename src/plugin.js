@@ -33,6 +33,11 @@ const PLUGIN_AUTHOR = Object.freeze({
   url: "https://github.com/kunchenguid/lavish-axi",
 });
 
+const SHOWME_REPOSITORY_URL = "https://github.com/josuemarlique/showme";
+const SHOWME_HOMEPAGE_URL = `${SHOWME_REPOSITORY_URL}#readme`;
+const CODEX_PLUGIN_DESCRIPTION =
+  "Open agent-generated HTML in a local browser to review it, annotate elements and text, and send feedback back to the agent.";
+
 export function spawnPluginClientSync(command, args) {
   return crossSpawn.sync(command, args, { encoding: "utf8" });
 }
@@ -90,6 +95,50 @@ export function createPluginManifest(packageJson) {
  */
 export function createPluginManifestJson(packageJson) {
   return `${JSON.stringify(createPluginManifest(packageJson), null, 2)}\n`;
+}
+
+/**
+ * Build the native Codex plugin manifest. Codex and Agent Plugins deliberately
+ * use separate manifests, but both discover the same skills/showme/SKILL.md.
+ *
+ * @param {Record<string, any>} packageJson parsed package.json
+ * @returns {Record<string, any>} .codex-plugin/plugin.json contents
+ */
+export function createCodexPluginManifest(packageJson) {
+  return {
+    name: packageJson.name,
+    version: packageJson.version,
+    description: CODEX_PLUGIN_DESCRIPTION,
+    author: PLUGIN_AUTHOR,
+    homepage: SHOWME_HOMEPAGE_URL,
+    repository: SHOWME_REPOSITORY_URL,
+    license: packageJson.license,
+    keywords: ["html", "review", "artifacts", "visualization", "annotation"],
+    skills: "./skills/",
+    interface: {
+      displayName: "Showme",
+      shortDescription: "Review and annotate agent-generated HTML",
+      longDescription:
+        "Open agent-generated HTML in a local browser, annotate elements or text, and send precise feedback back to the agent without leaving the review loop.",
+      developerName: "Josue Marlique",
+      category: "Productivity",
+      capabilities: ["Interactive", "Read", "Write"],
+      defaultPrompt: [
+        "Show this plan as an interactive HTML artifact.",
+        "Open this HTML file for review.",
+        "Turn this comparison into a visual artifact.",
+      ],
+      websiteURL: SHOWME_HOMEPAGE_URL,
+    },
+  };
+}
+
+/**
+ * @param {Record<string, any>} packageJson parsed package.json
+ * @returns {string} formatted Codex plugin manifest, newline-terminated
+ */
+export function createCodexPluginManifestJson(packageJson) {
+  return `${JSON.stringify(createCodexPluginManifest(packageJson), null, 2)}\n`;
 }
 
 /**

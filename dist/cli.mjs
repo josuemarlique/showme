@@ -26371,7 +26371,7 @@ var PLAYBOOKS = [
   import { File, FileDiff } from "https://esm.sh/@pierre/diffs@1.2.10?bundle";
 
   const theme = { light: "github-light", dark: "github-dark" };
-  const options = { theme, themeType: "dark", overflow: "wrap" };
+  const options = { theme, themeType: "light", overflow: "wrap" };
   const oldFile = {
     name: "src/greeting.ts",
     contents: "export function greet(name: string) {\\n  return \\"Hello \\" + name;\\n}\\n\\nconsole.log(greet(\\"Showme\\"));\\n",
@@ -26684,7 +26684,7 @@ function createDesignOutput() {
       versions: { mermaid: MERMAID_VERSION }
     },
     theme_usage: [
-      'Default to `<html data-theme="luxury">` - it matches the Showme look. Pick a different theme from the list below only when the user asked for one or the content clearly calls for it.',
+      'Default to `<html data-theme="silk">` - it gives Showme artifacts a polished light palette. Pick a different theme from the list below only when the user asked for one or the content clearly calls for it.',
       'Set a nested section theme with `<section data-theme="night">`.',
       "Prefer semantic colors such as `bg-base-100`, `bg-base-200`, `text-base-content`, `bg-primary`, `text-primary-content`, `alert-warning`, and `btn-primary` so themes remain readable.",
       "Avoid hardcoded Tailwind color names for text and surfaces unless the user asked for exact colors.",
@@ -30492,6 +30492,8 @@ var PLUGIN_AUTHOR = Object.freeze({
   name: "Fork of lavish-axi by Kun Chen (MIT)",
   url: "https://github.com/kunchenguid/lavish-axi"
 });
+var SHOWME_REPOSITORY_URL = "https://github.com/josuemarlique/showme";
+var SHOWME_HOMEPAGE_URL = `${SHOWME_REPOSITORY_URL}#readme`;
 function spawnPluginClientSync(command, args) {
   return import_cross_spawn.default.sync(command, args, { encoding: "utf8" });
 }
@@ -46074,7 +46076,7 @@ var POLL_WAKE_PATH_RULES = Object.freeze([
 ]);
 var POLL_SEND_AND_END_RULE = "`Send & End` ends the session. Its final feedback is still delivered once. After that response, polling stops, and the agent must not reopen the session uninvited.";
 var CODEX_POLL_WAKE_PATH_GUIDANCE = "Codex detected: completed background tasks may not resume Codex automatically, so keep the poll attached to the active turn.";
-var VERSION = "0.1.63";
+var VERSION = "0.1.64";
 function detectInvokingAgent(env = process.env) {
   return ["CODEX_SANDBOX", "CODEX_THREAD_ID"].some((key) => Object.hasOwn(env, key)) ? "codex" : "generic";
 }
@@ -47113,9 +47115,9 @@ Show a copy-pasteable CDN snippet for Tailwind CSS browser runtime v4 + DaisyUI 
     setup: `Usage: showme setup hooks
        showme setup plugin
 
-hooks: install or repair agent SessionStart hooks for showme ambient context in Claude Code, Codex, OpenCode, and GitHub Copilot CLI. Restart your agent session afterward to receive the context. This is the primary integration - it carries live session state.
+hooks: install or repair agent SessionStart hooks for showme ambient context in Claude Code, Codex, OpenCode, and GitHub Copilot CLI. Restart your agent session afterward to receive the context. This optional integration carries live session state.
 
-plugin: register the installed showme package as an Agent Plugin (agent-plugins.org) in VS Code, Cursor, and GitHub Copilot CLI. The installed package directory is itself the plugin root, so nothing is downloaded and no marketplace is involved. Reload each client afterward. Codex users should use \`setup hooks\` instead.
+plugin: register the installed showme package as an Agent Plugin (agent-plugins.org) in VS Code, Cursor, and GitHub Copilot CLI. The installed package directory is itself the plugin root, so nothing is downloaded and no marketplace is involved. Reload each client afterward. Codex installs Showme separately through a Codex plugin marketplace; the session hook remains optional ambient context.
 
 Both actions are explicit opt-in, idempotent, and repair a stale path after a reinstall.
 `,
